@@ -82,7 +82,8 @@ function is_valid_signature()
 }
 
 # This function parses and adds a new trailer line into
-# @all_trailers that will be properly written later.
+# @all_trailers that will be properly written later, however
+# the trailer isn't added if there's another identical one.
 # It attempts to use the user's name and email configured
 # if a signature is not passed as argument and gives
 # an error if they are not properly set with git config.
@@ -100,6 +101,7 @@ function parse_and_add_trailer()
   local signature="$2"
   local formated_output
   local trailer
+  local repeated_trailer=false
 
   trailer="${TRAILER_TAGS[$keyword]} "
 
@@ -118,7 +120,18 @@ function parse_and_add_trailer()
     trailer+="$signature"
   fi
 
-  all_trailers+=("$trailer")
+  # Check for trailer repetition, do not add the trailer if it's repeated
+  for item in "${all_trailers[@]}"; do
+    if [[ "$item" == "$trailer" ]]; then
+      repeated_trailer=true
+      warning "Skipping repeated trailer line: '${trailer}'"
+      break
+    fi
+  done
+
+  if [[ "$repeated_trailer" = false ]]; then
+    all_trailers+=("$trailer")
+  fi
 }
 
 # This function receives a commit SHA and verifies if it's

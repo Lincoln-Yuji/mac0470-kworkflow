@@ -263,6 +263,12 @@ function test_signature_patch_signed_off_by()
   signature_main -s'Jane Doe <janedoe@mail.xyz>' patch_model.patch
   assertFileEquals 'patch_model.patch' 'patch_model_signed_off.patch'
   git restore patch_model.patch
+
+  # Test repetition avoidance by checking the result and warning message
+  output_msg="$(signature_main -s'Jane Doe <janedoe@mail.xyz>' -s'Jane Doe <janedoe@mail.xyz>' patch_model.patch)"
+  assertFileEquals 'patch_model.patch' 'patch_model_signed_off.patch'
+  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Signed-off-by: Jane Doe <janedoe@mail.xyz>'" "$output_msg"
+  git restore patch_model.patch
 }
 
 function test_signature_patch_reviewed_by()
@@ -276,10 +282,18 @@ function test_signature_patch_reviewed_by()
   signature_main -r'Jane Doe <janedoe@mail.xyz>' patch_model.patch
   assertFileEquals 'patch_model.patch' 'patch_model_reviewed.patch'
   git restore patch_model.patch
+
+  # Test repetition avoidance by checking the result and warning message
+  output_msg="$(signature_main -r'Jane Doe <janedoe@mail.xyz>' -r'Jane Doe <janedoe@mail.xyz>' patch_model.patch)"
+  assertFileEquals 'patch_model.patch' 'patch_model_reviewed.patch'
+  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Reviewed-by: Jane Doe <janedoe@mail.xyz>'" "$output_msg"
+  git restore patch_model.patch
 }
 
 function test_signature_patch_full_review()
 {
+  local output_msg
+
   # Long option
   signature_main --add-reviewed-by='Jane Doe <janedoe@mail.xyz>' patch_model.patch
   signature_main --add-signed-off-by='Jane Doe <janedoe@mail.xyz>' patch_model.patch
@@ -300,6 +314,17 @@ function test_signature_patch_full_review()
   signature_main -r -s patch_model.patch
   assertFileEquals 'patch_model.patch' 'patch_model_full_review.patch'
   git restore patch_model.patch
+
+  # Test repetition avoidance by checking the result and warning message
+  output_msg="$(signature_main -r -s -r patch_model.patch)"
+  assertFileEquals 'patch_model.patch' 'patch_model_full_review.patch'
+  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Reviewed-by: Jane Doe <janedoe@mail.xyz>'" "$output_msg"
+  git restore patch_model.patch
+
+  output_msg="$(signature_main -r -s -s patch_model.patch)"
+  assertFileEquals 'patch_model.patch' 'patch_model_full_review.patch'
+  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Signed-off-by: Jane Doe <janedoe@mail.xyz>'" "$output_msg"
+  git restore patch_model.patch
 }
 
 function test_signature_patch_acked_by()
@@ -312,6 +337,12 @@ function test_signature_patch_acked_by()
   # Short option
   signature_main -a'Michael Doe <michaeldoe@kwkw.xyz>' patch_model.patch
   assertFileEquals 'patch_model.patch' 'patch_model_acked.patch'
+  git restore patch_model.patch
+
+  # Test repetition avoidance by checking the result and warning message
+  output_msg="$(signature_main -a'Michael Doe <michaeldoe@kwkw.xyz>' -a'Michael Doe <michaeldoe@kwkw.xyz>' patch_model.patch)"
+  assertFileEquals 'patch_model.patch' 'patch_model_acked.patch'
+  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Acked-by: Michael Doe <michaeldoe@kwkw.xyz>'" "$output_msg"
   git restore patch_model.patch
 }
 
@@ -352,6 +383,12 @@ function test_signature_patch_tested_by()
   signature_main -t'Bob Brown <bob.brown@mail.xyz>' patch_model.patch
   assertFileEquals 'patch_model.patch' 'patch_model_tested.patch'
   git restore patch_model.patch
+
+  # Test repetition avoidance by checking the result and warning message
+  output_msg="$(signature_main -t'Bob Brown <bob.brown@mail.xyz>' -t'Bob Brown <bob.brown@mail.xyz>' patch_model.patch)"
+  assertFileEquals 'patch_model.patch' 'patch_model_tested.patch'
+  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Tested-by: Bob Brown <bob.brown@mail.xyz>'" "$output_msg"
+  git restore patch_model.patch
 }
 
 function test_signature_patch_co_developed_by()
@@ -364,6 +401,12 @@ function test_signature_patch_co_developed_by()
   # Short option
   signature_main -C'Bob Brown <bob.brown@mail.xyz>' patch_model.patch
   assertFileEquals 'patch_model.patch' 'patch_model_co_developed.patch'
+  git restore patch_model.patch
+
+  # Test repetition avoidance by checking the result and warning message
+  output_msg="$(signature_main -C'Bob Brown <bob.brown@mail.xyz>' -C'Bob Brown <bob.brown@mail.xyz>' patch_model.patch)"
+  assertFileEquals 'patch_model.patch' 'patch_model_co_developed.patch'
+  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Co-developed-by: Bob Brown <bob.brown@mail.xyz>'" "$output_msg"
   git restore patch_model.patch
 }
 
@@ -378,10 +421,17 @@ function test_signature_patch_reported_by()
   signature_main -R'Bob Brown <bob.brown@mail.xyz>' patch_model.patch
   assertFileEquals 'patch_model.patch' 'patch_model_reported.patch'
   git restore patch_model.patch
+
+  # Test repetition avoidance by checking the result and warning message
+  output_msg="$(signature_main -R'Bob Brown <bob.brown@mail.xyz>' -R'Bob Brown <bob.brown@mail.xyz>' patch_model.patch)"
+  assertFileEquals 'patch_model.patch' 'patch_model_reported.patch'
+  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Reported-by: Bob Brown <bob.brown@mail.xyz>'" "$output_msg"
+  git restore patch_model.patch
 }
 
 function test_signature_patch_multi_call()
 {
+  local output_msg
   local head2_msg
 
   # Store the correct message's format
@@ -394,16 +444,26 @@ function test_signature_patch_multi_call()
   signature_main --add-reviewed-by='John Doe <johndoe@kwkw.xyz>' patch_model.patch
   signature_main --add-acked-by='Michael Doe <michaeldoe@kwkw.xyz>' patch_model.patch
   signature_main --add-fixes='HEAD~2' patch_model.patch
-
   assertFileEquals 'patch_model.patch' 'patch_model_complete.patch'
   git restore patch_model.patch
 
   # Use each option once in the same command
-  signature_main -r'John Doe <johndoe@kwkw.xyz>' \
-    -a'Michael Doe <michaeldoe@kwkw.xyz>' \
-    -f'HEAD~2' patch_model.patch
-
+  signature_main -r'John Doe <johndoe@kwkw.xyz>' -a'Michael Doe <michaeldoe@kwkw.xyz>' -f'HEAD~2' patch_model.patch
   assertFileEquals 'patch_model.patch' 'patch_model_complete.patch'
+  git restore patch_model.patch
+
+  git config --local user.name 'John Doe'
+  git config --local user.email 'johndoe@kwkw.xyz'
+
+  # Test repetition avoidance by checking the result and warning message
+  output_msg="$(signature_main -r -a'Michael Doe <michaeldoe@kwkw.xyz>' -r -f'HEAD~2' patch_model.patch)"
+  assertFileEquals 'patch_model.patch' 'patch_model_complete.patch'
+  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Reviewed-by: John Doe <johndoe@kwkw.xyz>'" "$output_msg"
+  git restore patch_model.patch
+
+  output_msg="$(signature_main -r -a'Michael Doe <michaeldoe@kwkw.xyz>' -a'Michael Doe <michaeldoe@kwkw.xyz>' -f'HEAD~2' patch_model.patch)"
+  assertFileEquals 'patch_model.patch' 'patch_model_complete.patch'
+  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Acked-by: Michael Doe <michaeldoe@kwkw.xyz>'" "$output_msg"
   git restore patch_model.patch
 }
 
