@@ -254,6 +254,9 @@ function tearDown()
 
 function test_signature_patch_signed_off_by()
 {
+  local output_msg
+  local return_status
+
   # Long option
   signature_main --add-signed-off-by='Jane Doe <janedoe@mail.xyz>' patch_model.patch
   assertFileEquals 'patch_model.patch' 'patch_model_signed_off.patch'
@@ -269,10 +272,34 @@ function test_signature_patch_signed_off_by()
   assertFileEquals 'patch_model.patch' 'patch_model_signed_off.patch'
   assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Signed-off-by: Jane Doe <janedoe@mail.xyz>'" "$output_msg"
   git restore patch_model.patch
+
+  # Testing default behavior with git config
+  git config user.name 'Jane Doe'
+  git config user.email 'janedoe@mail.xyz'
+
+  signature_main -s patch_model.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_signed_off.patch'
+  git restore patch_model.patch
+
+  # Simulating non-configured user.name and user.email by setting local empty values.
+  # This has to be tested this way because we CAN NOT unset git config using:
+  # 'git config --global --unset ( user.name | user.email )'
+  # Since this would affect user's global git configuration outside tests.
+  git config user.name ''
+  git config user.email ''
+
+  output_msg="$(signature_main --add-signed-off-by)"
+  return_status="$?"
+  assertEquals "(${LINENO})" 22 "$return_status"
+  assertEquals "(${LINENO})" \
+    "You must configure your user.name and user.email with git to use --add-signed-off-by or -s without an argument" \
+    "$output_msg"
 }
 
 function test_signature_patch_reviewed_by()
 {
+  local output_msg
+
   # Long option
   signature_main --add-reviewed-by='Jane Doe <janedoe@mail.xyz>' patch_model.patch
   assertFileEquals 'patch_model.patch' 'patch_model_reviewed.patch'
@@ -329,6 +356,8 @@ function test_signature_patch_full_review()
 
 function test_signature_patch_acked_by()
 {
+  local output_msg
+
   # Long option
   signature_main --add-acked-by='Michael Doe <michaeldoe@kwkw.xyz>' patch_model.patch
   assertFileEquals 'patch_model.patch' 'patch_model_acked.patch'
@@ -374,6 +403,8 @@ function test_signature_patch_fixes()
 
 function test_signature_patch_tested_by()
 {
+  local output_msg
+
   # Long option
   signature_main --add-tested-by='Bob Brown <bob.brown@mail.xyz>' patch_model.patch
   assertFileEquals 'patch_model.patch' 'patch_model_tested.patch'
@@ -393,6 +424,8 @@ function test_signature_patch_tested_by()
 
 function test_signature_patch_co_developed_by()
 {
+  local output_msg
+
   # Long option
   signature_main --add-co-developed-by='Bob Brown <bob.brown@mail.xyz>' patch_model.patch
   assertFileEquals 'patch_model.patch' 'patch_model_co_developed.patch'
@@ -412,6 +445,8 @@ function test_signature_patch_co_developed_by()
 
 function test_signature_patch_reported_by()
 {
+  local output_msg
+
   # Long option
   signature_main --add-reported-by='Bob Brown <bob.brown@mail.xyz>' patch_model.patch
   assertFileEquals 'patch_model.patch' 'patch_model_reported.patch'
