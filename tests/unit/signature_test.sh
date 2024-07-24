@@ -127,17 +127,21 @@ Signed-off-by: kw <kw@kwkw.xyz>'
 # Correct trailers for --add-co-developed-by and -C
 CORRECT_CO_DEVELOPED_HEAD='Signed-off-by: kw <kw@kwkw.xyz>
 Co-developed-by: Bob Brown <bob.brown@mail.xyz>
+Signed-off-by: Bob Brown <bob.brown@mail.xyz>
 
 Signed-off-by: kw <kw@kwkw.xyz>'
 
 CORRECT_CO_DEVELOPED_LOG='Signed-off-by: kw <kw@kwkw.xyz>
 Co-developed-by: Bob Brown <bob.brown@mail.xyz>
+Signed-off-by: Bob Brown <bob.brown@mail.xyz>
 
 Signed-off-by: kw <kw@kwkw.xyz>
 Co-developed-by: Bob Brown <bob.brown@mail.xyz>
+Signed-off-by: Bob Brown <bob.brown@mail.xyz>
 
 Signed-off-by: kw <kw@kwkw.xyz>
 Co-developed-by: Bob Brown <bob.brown@mail.xyz>
+Signed-off-by: Bob Brown <bob.brown@mail.xyz>
 
 Signed-off-by: kw <kw@kwkw.xyz>'
 
@@ -437,9 +441,9 @@ function test_signature_patch_co_developed_by()
   git restore patch_model.patch
 
   # Test repetition avoidance by checking the result and warning message
-  output_msg="$(signature_main -C'Bob Brown <bob.brown@mail.xyz>' -C'Bob Brown <bob.brown@mail.xyz>' patch_model.patch)"
+  output_msg="$(signature_main -C'Bob Brown <bob.brown@mail.xyz>' -s'Bob Brown <bob.brown@mail.xyz>' patch_model.patch)"
   assertFileEquals 'patch_model.patch' 'patch_model_co_developed.patch'
-  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Co-developed-by: Bob Brown <bob.brown@mail.xyz>'" "$output_msg"
+  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Signed-off-by: Bob Brown <bob.brown@mail.xyz>'" "$output_msg"
   git restore patch_model.patch
 }
 

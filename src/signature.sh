@@ -63,6 +63,8 @@ function signature_main()
   done
 }
 
+# TODO: To move this function to 'kw_string.sh'.
+#
 # This function validates the signature. If the passed signature
 # does not follow the format 'NAME <EMAIL>' with a valid EMAIL, then
 # it returns an error.
@@ -250,102 +252,115 @@ function parse_signature_options()
   while [[ "$#" -gt 0 ]]; do
     case "$1" in
       --add-signed-off-by | -s)
-        parse_and_add_trailer 'SIGNED_OFF_BY' "$2"
-        return_status="$?"
+        while read -d ',' -r signature; do
+          parse_and_add_trailer 'SIGNED_OFF_BY' "$signature"
+          return_status="$?"
 
-        if [[ "$return_status" -eq 1 ]]; then
-          options_values['ERROR']='You must configure your user.name and user.email with git '
-          options_values['ERROR']+='to use --add-signed-off-by or -s without an argument'
-          return 22 # EINVAL
-        elif [[ "$return_status" -eq 22 ]]; then
-          options_values['ERROR']="Invalid signature format: ${2}; It should follow 'NAME <EMAIL>'"
-          return 22 # EINVAL
-        fi
+          if [[ "$return_status" -eq 1 ]]; then
+            options_values['ERROR']='You must configure your user.name and user.email with git '
+            options_values['ERROR']+='to use --add-signed-off-by or -s without an argument'
+            return 22 # EINVAL
+          elif [[ "$return_status" -eq 22 ]]; then
+            options_values['ERROR']="Invalid signature format: ${signature}"
+            return 22 # EINVAL
+          fi
+        done <<< "${2},"
 
         [[ ! "$2" ]] || shift
         shift
         ;;
 
       --add-reviewed-by | -r)
-        parse_and_add_trailer 'REVIEWED_BY' "$2"
-        return_status="$?"
+        while read -d ',' -r signature; do
+          parse_and_add_trailer 'REVIEWED_BY' "$signature"
+          return_status="$?"
 
-        if [[ "$return_status" -eq 1 ]]; then
-          options_values['ERROR']='You must configure your user.name and user.email with git '
-          options_values['ERROR']+='to use --add-reviewed-by or -r without an argument'
-          return 22 # EINVAL
-        elif [[ "$return_status" -eq 22 ]]; then
-          options_values['ERROR']="Invalid signature format: ${2}; It should follow 'NAME <EMAIL>'"
-          return 22 # EINVAL
-        fi
+          if [[ "$return_status" -eq 1 ]]; then
+            options_values['ERROR']='You must configure your user.name and user.email with git '
+            options_values['ERROR']+='to use --add-reviewed-by or -r without an argument'
+            return 22 # EINVAL
+          elif [[ "$return_status" -eq 22 ]]; then
+            options_values['ERROR']="Invalid signature format: ${signature}"
+            return 22 # EINVAL
+          fi
+        done <<< "${2},"
 
         [[ ! "$2" ]] || shift
         shift
         ;;
 
       --add-acked-by | -a)
-        parse_and_add_trailer 'ACKED_BY' "$2"
-        return_status="$?"
+        while read -d ',' -r signature; do
+          parse_and_add_trailer 'ACKED_BY' "$signature"
+          return_status="$?"
 
-        if [[ "$return_status" -eq 1 ]]; then
-          options_values['ERROR']='You must configure your user.name and user.email with git '
-          options_values['ERROR']+='to use --add-acked-by or -a without an argument'
-          return 22 # EINVAL
-        elif [[ "$return_status" -eq 22 ]]; then
-          options_values['ERROR']="Invalid signature format: ${2}; It should follow 'NAME <EMAIL>'"
-          return 22 # EINVAL
-        fi
+          if [[ "$return_status" -eq 1 ]]; then
+            options_values['ERROR']='You must configure your user.name and user.email with git '
+            options_values['ERROR']+='to use --add-acked-by or -a without an argument'
+            return 22 # EINVAL
+          elif [[ "$return_status" -eq 22 ]]; then
+            options_values['ERROR']="Invalid signature format: ${signature}"
+            return 22 # EINVAL
+          fi
+        done <<< "${2},"
 
         [[ ! "$2" ]] || shift
         shift
         ;;
 
       --add-tested-by | -t)
-        parse_and_add_trailer 'TESTED_BY' "$2"
-        return_status="$?"
+        while read -d ',' -r signature; do
+          parse_and_add_trailer 'TESTED_BY' "$signature"
+          return_status="$?"
 
-        if [[ "$return_status" -eq 1 ]]; then
-          options_values['ERROR']='You must configure your user.name and user.email with git '
-          options_values['ERROR']+='to use --add-tested-by or -t without an argument'
-          return 22 # EINVAL
-        elif [[ "$return_status" -eq 22 ]]; then
-          options_values['ERROR']="Invalid signature format: ${2}; It should follow 'NAME <EMAIL>'"
-          return 22 # EINVAL
-        fi
+          if [[ "$return_status" -eq 1 ]]; then
+            options_values['ERROR']='You must configure your user.name and user.email with git '
+            options_values['ERROR']+='to use --add-tested-by or -t without an argument'
+            return 22 # EINVAL
+          elif [[ "$return_status" -eq 22 ]]; then
+            options_values['ERROR']="Invalid signature format: ${signature}"
+            return 22 # EINVAL
+          fi
+        done <<< "${2},"
 
         [[ ! "$2" ]] || shift
         shift
         ;;
 
       --add-co-developed-by | -C)
-        parse_and_add_trailer 'CO_DEVELOPED_BY' "$2"
-        return_status="$?"
+        while read -d ',' -r signature; do
+          parse_and_add_trailer 'CO_DEVELOPED_BY' "$signature"
+          return_status="$?"
+          parse_and_add_trailer 'SIGNED_OFF_BY' "$signature"
 
-        if [[ "$return_status" -eq 1 ]]; then
-          options_values['ERROR']='You must configure your user.name and user.email with git '
-          options_values['ERROR']+='to use --add-co-developed-by or -C without an argument'
-          return 22 # EINVAL
-        elif [[ "$return_status" -eq 22 ]]; then
-          options_values['ERROR']="Invalid signature format: ${2}; It should follow 'NAME <EMAIL>'"
-          return 22 # EINVAL
-        fi
+          if [[ "$return_status" -eq 1 ]]; then
+            options_values['ERROR']='You must configure your user.name and user.email with git '
+            options_values['ERROR']+='to use --add-co-developed-by or -C without an argument'
+            return 22 # EINVAL
+          elif [[ "$return_status" -eq 22 ]]; then
+            options_values['ERROR']="Invalid signature format: ${signature}"
+            return 22 # EINVAL
+          fi
+        done <<< "${2},"
 
         [[ ! "$2" ]] || shift
         shift
         ;;
 
       --add-reported-by | -R)
-        parse_and_add_trailer 'REPORTED_BY' "$2"
-        return_status="$?"
+        while read -d ',' -r signature; do
+          parse_and_add_trailer 'REPORTED_BY' "$signature"
+          return_status="$?"
 
-        if [[ "$return_status" -eq 1 ]]; then
-          options_values['ERROR']='You must configure your user.name and user.email with git '
-          options_values['ERROR']+='to use --add-reported-by or -R without an argument'
-          return 22 # EINVAL
-        elif [[ "$return_status" -eq 22 ]]; then
-          options_values['ERROR']="Invalid signature format: ${2}; It should follow 'NAME <EMAIL>'"
-          return 22 # EINVAL
-        fi
+          if [[ "$return_status" -eq 1 ]]; then
+            options_values['ERROR']='You must configure your user.name and user.email with git '
+            options_values['ERROR']+='to use --add-reported-by or -R without an argument'
+            return 22 # EINVAL
+          elif [[ "$return_status" -eq 22 ]]; then
+            options_values['ERROR']="Invalid signature format: ${signature}"
+            return 22 # EINVAL
+          fi
+        done <<< "${2},"
 
         [[ ! "$2" ]] || shift
         shift

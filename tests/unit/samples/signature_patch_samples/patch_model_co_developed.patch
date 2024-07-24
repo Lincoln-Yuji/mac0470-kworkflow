@@ -8,6 +8,7 @@ This is just a dummy patch to test features.
 
 Signed-off-by: kw <kw@kw.net>
 Co-developed-by: Bob Brown <bob.brown@mail.xyz>
+Signed-off-by: Bob Brown <bob.brown@mail.xyz>
 ---
  sound/core/init.c | 2 ++
  1 file changed, 2 insertions(+)
