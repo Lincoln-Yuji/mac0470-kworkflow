@@ -3,7 +3,7 @@ include "${KW_LIB_DIR}/lib/kwlib.sh"
 
 declare -gA options_values
 
-# Define trailer tags
+# Define a constant to store all trailer tags
 declare -gA TRAILER_TAGS
 
 TRAILER_TAGS['SIGNED_OFF_BY']='Signed-off-by:'
@@ -14,11 +14,39 @@ TRAILER_TAGS['REPORTED_BY']='Reported-by:'
 TRAILER_TAGS['CO_DEVELOPED_BY']='Co-developed-by:'
 TRAILER_TAGS['FIXES']='Fixes:'
 
-# Defining an array to store the order trailers are written
-declare -ga all_trailers
+# This structure organizes all the parsed trailer lines by their tags.
+# For example, TRAILER_BUFFERS['SIGNED_OFF_BY'] contains all trailers
+# tagged with 'Signed-off-by'. It's a string where trailers are separated
+# by commas like:
+# "Signed-off-by: Joe Doe <joedoe@mail.xyz>,Signed-off-by: Jane Doe <janedoe@mail.xyz>"
+#
+# It acts as an auxiliary variable to sort the trailers that will be written later
+declare -gA grouped_trailers_by_tag
 
-# Defining the format a legit email should follow
-declare -gr email_regex='[A-Za-z0-9_\.-]+@[A-Za-z0-9_-]+(\.[A-Za-z0-9]+)+'
+# This structure groups different tags based on unique signatures.
+# For example, grouped_tags['blabla@mail.xyz'] is a string which contains
+# trailer lines associated to this email and separated by commas like:
+# "Reviewed-by: Joe Doe <joedoe@mail.xyz>,Signed-off-by: Joe Doe <joedoe@mail.xyz>"
+#
+# It acts as an auxiliary variable to sort the trailers that will be written later
+declare -gA grouped_trailers_by_email
+
+# This variable holds all the emails read from command line arguments.
+# It acts as an auxiliary variable to sort the trailers that will be written later
+declare -ga sorted_emails
+
+# Variable to store all trailers that will be written.
+# The order attempts to obey the following general sequence:
+#
+# [REPORTED_BY tags]   Chronologically, this is what happens first.
+# ...                  Of course, such tags are optional.
+# ...
+# [SUBMITTERS' tags]   Then a person (or group) develops the patch(es).
+# ...
+# [MAINTAINERS' tags]  Patches then are acked/tested/reviewed by maintainers
+# ...
+# [FIXES tags]         Then 'Fixes' tags are written last
+declare -g all_trailers
 
 # This function performs operations over trailers in
 # either patches or commits. It checks if given argument
@@ -41,6 +69,17 @@ function signature_main()
     exit 0
   fi
 
+  # Ensure all trailer arrays are empty
+  for key in "${!grouped_trailers_by_tag[@]}"; do
+    unset "grouped_trailers_by_tag[$key]"
+  done
+  for key in "${!grouped_trailers_by_email[@]}"; do
+    unset "grouped_trailers_by_email[$key]"
+  done
+  sorted_emails=()
+  all_trailers=''
+
+  # Parse all command line options
   parse_signature_options "$@"
   if [[ "$?" -gt 0 ]]; then
     complain "${options_values['ERROR']}"
@@ -52,11 +91,13 @@ function signature_main()
 
   read -ra patch_or_sha_args <<< "${options_values['PATCH_OR_SHA']}"
 
-  if [[ "${#all_trailers[@]}" -eq 0 ]]; then
-    complain 'An option is required to use this command.'
+  if [[ -n "${options_values['NO_ADD_OPTION']}" ]]; then
+    complain 'At least one --add option is required to use this command'
     signature_help
     return 22 # EINVAL
   fi
+
+  sort_all_trailers
 
   for arg in "${patch_or_sha_args[@]}"; do
     write_all_trailers "$arg" "$flag"
@@ -75,7 +116,10 @@ function signature_main()
 # Returns 0 if signature is valid; returns 22 otherwise.
 function is_valid_signature()
 {
+
+  # Defining the format a legit email should follow
   local signature="$1"
+  local email_regex='[A-Za-z0-9_\.-]+@[A-Za-z0-9_-]+(\.[A-Za-z0-9]+)+'
   local signature_regex='^[^<]+ <'"$email_regex"'>$'
 
   if ! [[ "$signature" =~ $signature_regex ]]; then
@@ -123,16 +167,16 @@ function parse_and_add_trailer()
   fi
 
   # Check for trailer repetition, do not add the trailer if it's repeated
-  for item in "${all_trailers[@]}"; do
+  while read -d ',' -r item; do
     if [[ "$item" == "$trailer" ]]; then
       repeated_trailer=true
-      warning "Skipping repeated trailer line: '${trailer}'"
+      warning "Skipping duplicated trailer line: '${trailer}'"
       break
     fi
-  done
+  done <<< "${grouped_trailers_by_tag[$keyword]}"
 
   if [[ "$repeated_trailer" = false ]]; then
-    all_trailers+=("$trailer")
+    grouped_trailers_by_tag["$keyword"]+="${trailer},"
   fi
 }
 
@@ -188,6 +232,61 @@ function format_name_email_from_user()
   printf '%s' "${user_name} <${user_email}>"
 }
 
+# This function gets all trailers saved in a `grouped_trailers_by_tag`
+# entry and associates each trailer to a `grouped_trailers_by_email` entry.
+#
+# @specified_tag Holds the tag group that will be re-grouped by their emails.
+function group_by_email()
+{
+  local specified_tag="$1"
+  local email
+
+  while read -d ',' -r trailer; do
+    # Extract email from trailer
+    email=$(printf '%s' "$trailer" | grep --only-matching --perl-regexp '<.*?>')
+    # Save email if no signature with it was saved so far
+    if [[ -z "${grouped_trailers_by_email[$email]}" ]]; then
+      sorted_emails+=("$email")
+    fi
+    # Append the signature to the associative array based on the email
+    grouped_trailers_by_email["$email"]+="${trailer},"
+  done <<< "${grouped_trailers_by_tag[$specified_tag]}"
+}
+
+# This function adds every parsed trailer in `grouped_trailers_by_tag`
+# entries to `all_trailers`, following the general order proposed at the
+# `all_trailers` declaration.
+#
+# The strategy to achieve that is to sort all trailers by their tags first,
+# then sort them by their emails. By doing so, this function can enforce that
+# general order, and additionally it forces signatures from the same person
+# to be together, avoiding multiple disconnected tags like 'Co-developed-by',
+# 'Reviewed-by' or 'Signed-off-by' from the person in commits or patches.
+function sort_all_trailers()
+{
+  # Group all trailers by email. The order of this grouping process
+  # follows the same order of the next `group_by_email` calls, sorting
+  # the trailers by their tags.
+  group_by_email 'REPORTED_BY'
+  group_by_email 'CO_DEVELOPED_BY'
+  group_by_email 'ACKED_BY'
+  group_by_email 'TESTED_BY'
+  group_by_email 'REVIEWED_BY'
+  group_by_email 'SIGNED_OFF_BY'
+
+  # Concatanate all email groups following the order in `sorted_emails`,
+  # sorting the trailers by their emails.
+  for email in "${sorted_emails[@]}"; do
+    all_trailers+="${grouped_trailers_by_email[$email]}"
+  done
+
+  # Concatanate every 'Fixes' tag at the end of `all_trailes`, which means
+  # they will be the last written trailers when `write_all_trailers` is called.
+  while read -d ',' -r trailer; do
+    all_trailers+="${trailer},"
+  done <<< "${grouped_trailers_by_tag['FIXES']}"
+}
+
 # This function writes all the trailer lines stored in @all_trailers
 # into either a patch file or commit. It prints a warning if the
 # given argument is neither a valid patch path nor a commit reference
@@ -201,7 +300,7 @@ function write_all_trailers()
   local flag="$2"
   local cmd
 
-  for trailer in "${all_trailers[@]}"; do
+  while read -d ',' -r trailer; do
     # Check if given argument is either a patch or valid commit reference,
     # then build the correct command.
     if [[ "$(git cat-file -t "$patch_or_sha" 2> /dev/null)" == 'commit' ]]; then
@@ -218,7 +317,7 @@ function write_all_trailers()
     fi
 
     cmd_manager "$flag" "$cmd"
-  done
+  done <<< "$all_trailers"
 }
 
 # This function gets raw data and based on that fill out the options values to
@@ -240,18 +339,18 @@ function parse_signature_options()
     return 22 # EINVAL
   fi
 
-  # Reset the operation buffer array
-  all_trailers=()
-
   options_values['PATCH_OR_SHA']='HEAD'
 
   options_values['VERBOSE']=''
+  options_values['NO_ADD_OPTION']=1
 
   eval "set -- ${options}"
 
   while [[ "$#" -gt 0 ]]; do
     case "$1" in
       --add-signed-off-by | -s)
+        options_values['NO_ADD_OPTION']=''
+
         while read -d ',' -r signature; do
           parse_and_add_trailer 'SIGNED_OFF_BY' "$signature"
           return_status="$?"
@@ -271,6 +370,8 @@ function parse_signature_options()
         ;;
 
       --add-reviewed-by | -r)
+        options_values['NO_ADD_OPTION']=''
+
         while read -d ',' -r signature; do
           parse_and_add_trailer 'REVIEWED_BY' "$signature"
           return_status="$?"
@@ -290,6 +391,8 @@ function parse_signature_options()
         ;;
 
       --add-acked-by | -a)
+        options_values['NO_ADD_OPTION']=''
+
         while read -d ',' -r signature; do
           parse_and_add_trailer 'ACKED_BY' "$signature"
           return_status="$?"
@@ -309,6 +412,8 @@ function parse_signature_options()
         ;;
 
       --add-tested-by | -t)
+        options_values['NO_ADD_OPTION']=''
+
         while read -d ',' -r signature; do
           parse_and_add_trailer 'TESTED_BY' "$signature"
           return_status="$?"
@@ -328,6 +433,8 @@ function parse_signature_options()
         ;;
 
       --add-co-developed-by | -C)
+        options_values['NO_ADD_OPTION']=''
+
         while read -d ',' -r signature; do
           parse_and_add_trailer 'CO_DEVELOPED_BY' "$signature"
           return_status="$?"
@@ -348,6 +455,8 @@ function parse_signature_options()
         ;;
 
       --add-reported-by | -R)
+        options_values['NO_ADD_OPTION']=''
+
         while read -d ',' -r signature; do
           parse_and_add_trailer 'REPORTED_BY' "$signature"
           return_status="$?"
@@ -367,6 +476,8 @@ function parse_signature_options()
         ;;
 
       --add-fixes | -f)
+        options_values['NO_ADD_OPTION']=''
+
         if [[ ! "$2" ]]; then
           options_values['ERROR']='The option --add-fixes or -f demands an argument'
           return 22 # EINVAL

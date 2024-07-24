@@ -7,8 +7,8 @@ Subject: [PATCH] signature test
 This is just a dummy patch to test features.
 
 Signed-off-by: kw <kw@kw.net>
-Reviewed-by: John Doe <johndoe@kwkw.xyz>
 Acked-by: Michael Doe <michaeldoe@kwkw.xyz>
+Reviewed-by: John Doe <johndoe@kwkw.xyz>
 Fixes: <hash>
 ---
  sound/core/init.c | 2 ++

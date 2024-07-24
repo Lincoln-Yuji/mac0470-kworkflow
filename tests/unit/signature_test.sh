@@ -169,7 +169,7 @@ Signed-off-by: kw <kw@kwkw.xyz>'
 #
 # This also requires a hash while running tests, assuming
 # only the last commit fixes another one.
-CORRECT_MULTI_CALL_LOG='Signed-off-by: kw <kw@kwkw.xyz>
+CORRECT_MULTI_CALL_LOG_1='Signed-off-by: kw <kw@kwkw.xyz>
 Acked-by: Michael Doe <michaeldoe@kwkw.xyz>
 Reviewed-by: John Doe <johndoe@kwkw.xyz>
 Fixes: <hash>
@@ -181,6 +181,47 @@ Reviewed-by: John Doe <johndoe@kwkw.xyz>
 Signed-off-by: kw <kw@kwkw.xyz>
 Acked-by: Michael Doe <michaeldoe@kwkw.xyz>
 Reviewed-by: John Doe <johndoe@kwkw.xyz>
+
+Signed-off-by: kw <kw@kwkw.xyz>'
+
+# Correct trailers when using:
+# --add-co-developed-by or -C (twice)
+# --add-reported-by     or -R
+# --add-tested-by       or -t
+# --add-reviewed-by     or -r
+# --add-signed-off-by   or -s
+#
+# This variable also helps to verify if trailers are being
+# written in a typical expected order imposed by the kernel documentation
+CORRECT_MULTI_CALL_LOG_2='Signed-off-by: kw <kw@kwkw.xyz>
+Reported-by: Michael Doe <michaeldoe@mail.xyz>
+Co-developed-by: Michael Doe <michaeldoe@mail.xyz>
+Signed-off-by: Michael Doe <michaeldoe@mail.xyz>
+Co-developed-by: John Doe <johndoe@mail.xyz>
+Signed-off-by: John Doe <johndoe@mail.xyz>
+Tested-by: Jane Doe <janedoe@mail.xyz>
+Reviewed-by: Jane Doe <janedoe@mail.xyz>
+Signed-off-by: Jane Doe <janedoe@mail.xyz>
+
+Signed-off-by: kw <kw@kwkw.xyz>
+Reported-by: Michael Doe <michaeldoe@mail.xyz>
+Co-developed-by: Michael Doe <michaeldoe@mail.xyz>
+Signed-off-by: Michael Doe <michaeldoe@mail.xyz>
+Co-developed-by: John Doe <johndoe@mail.xyz>
+Signed-off-by: John Doe <johndoe@mail.xyz>
+Tested-by: Jane Doe <janedoe@mail.xyz>
+Reviewed-by: Jane Doe <janedoe@mail.xyz>
+Signed-off-by: Jane Doe <janedoe@mail.xyz>
+
+Signed-off-by: kw <kw@kwkw.xyz>
+Reported-by: Michael Doe <michaeldoe@mail.xyz>
+Co-developed-by: Michael Doe <michaeldoe@mail.xyz>
+Signed-off-by: Michael Doe <michaeldoe@mail.xyz>
+Co-developed-by: John Doe <johndoe@mail.xyz>
+Signed-off-by: John Doe <johndoe@mail.xyz>
+Tested-by: Jane Doe <janedoe@mail.xyz>
+Reviewed-by: Jane Doe <janedoe@mail.xyz>
+Signed-off-by: Jane Doe <janedoe@mail.xyz>
 
 Signed-off-by: kw <kw@kwkw.xyz>'
 
@@ -274,7 +315,7 @@ function test_signature_patch_signed_off_by()
   # Test repetition avoidance by checking the result and warning message
   output_msg="$(signature_main -s'Jane Doe <janedoe@mail.xyz>' -s'Jane Doe <janedoe@mail.xyz>' patch_model.patch)"
   assertFileEquals 'patch_model.patch' 'patch_model_signed_off.patch'
-  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Signed-off-by: Jane Doe <janedoe@mail.xyz>'" "$output_msg"
+  assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Signed-off-by: Jane Doe <janedoe@mail.xyz>'" "$output_msg"
   git restore patch_model.patch
 
   # Testing default behavior with git config
@@ -317,7 +358,7 @@ function test_signature_patch_reviewed_by()
   # Test repetition avoidance by checking the result and warning message
   output_msg="$(signature_main -r'Jane Doe <janedoe@mail.xyz>' -r'Jane Doe <janedoe@mail.xyz>' patch_model.patch)"
   assertFileEquals 'patch_model.patch' 'patch_model_reviewed.patch'
-  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Reviewed-by: Jane Doe <janedoe@mail.xyz>'" "$output_msg"
+  assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Reviewed-by: Jane Doe <janedoe@mail.xyz>'" "$output_msg"
   git restore patch_model.patch
 }
 
@@ -349,12 +390,12 @@ function test_signature_patch_full_review()
   # Test repetition avoidance by checking the result and warning message
   output_msg="$(signature_main -r -s -r patch_model.patch)"
   assertFileEquals 'patch_model.patch' 'patch_model_full_review.patch'
-  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Reviewed-by: Jane Doe <janedoe@mail.xyz>'" "$output_msg"
+  assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Reviewed-by: Jane Doe <janedoe@mail.xyz>'" "$output_msg"
   git restore patch_model.patch
 
   output_msg="$(signature_main -r -s -s patch_model.patch)"
   assertFileEquals 'patch_model.patch' 'patch_model_full_review.patch'
-  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Signed-off-by: Jane Doe <janedoe@mail.xyz>'" "$output_msg"
+  assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Signed-off-by: Jane Doe <janedoe@mail.xyz>'" "$output_msg"
   git restore patch_model.patch
 }
 
@@ -375,7 +416,7 @@ function test_signature_patch_acked_by()
   # Test repetition avoidance by checking the result and warning message
   output_msg="$(signature_main -a'Michael Doe <michaeldoe@kwkw.xyz>' -a'Michael Doe <michaeldoe@kwkw.xyz>' patch_model.patch)"
   assertFileEquals 'patch_model.patch' 'patch_model_acked.patch'
-  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Acked-by: Michael Doe <michaeldoe@kwkw.xyz>'" "$output_msg"
+  assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Acked-by: Michael Doe <michaeldoe@kwkw.xyz>'" "$output_msg"
   git restore patch_model.patch
 }
 
@@ -422,7 +463,7 @@ function test_signature_patch_tested_by()
   # Test repetition avoidance by checking the result and warning message
   output_msg="$(signature_main -t'Bob Brown <bob.brown@mail.xyz>' -t'Bob Brown <bob.brown@mail.xyz>' patch_model.patch)"
   assertFileEquals 'patch_model.patch' 'patch_model_tested.patch'
-  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Tested-by: Bob Brown <bob.brown@mail.xyz>'" "$output_msg"
+  assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Tested-by: Bob Brown <bob.brown@mail.xyz>'" "$output_msg"
   git restore patch_model.patch
 }
 
@@ -440,10 +481,15 @@ function test_signature_patch_co_developed_by()
   assertFileEquals 'patch_model.patch' 'patch_model_co_developed.patch'
   git restore patch_model.patch
 
-  # Test repetition avoidance by checking the result and warning message
+  # Test repetition avoidance by checking both result and warning message
   output_msg="$(signature_main -C'Bob Brown <bob.brown@mail.xyz>' -s'Bob Brown <bob.brown@mail.xyz>' patch_model.patch)"
   assertFileEquals 'patch_model.patch' 'patch_model_co_developed.patch'
-  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Signed-off-by: Bob Brown <bob.brown@mail.xyz>'" "$output_msg"
+  assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Signed-off-by: Bob Brown <bob.brown@mail.xyz>'" "$output_msg"
+  git restore patch_model.patch
+
+  output_msg="$(signature_main -s'Bob Brown <bob.brown@mail.xyz>' -C'Bob Brown <bob.brown@mail.xyz>' patch_model.patch)"
+  assertFileEquals 'patch_model.patch' 'patch_model_co_developed.patch'
+  assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Signed-off-by: Bob Brown <bob.brown@mail.xyz>'" "$output_msg"
   git restore patch_model.patch
 }
 
@@ -464,7 +510,7 @@ function test_signature_patch_reported_by()
   # Test repetition avoidance by checking the result and warning message
   output_msg="$(signature_main -R'Bob Brown <bob.brown@mail.xyz>' -R'Bob Brown <bob.brown@mail.xyz>' patch_model.patch)"
   assertFileEquals 'patch_model.patch' 'patch_model_reported.patch'
-  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Reported-by: Bob Brown <bob.brown@mail.xyz>'" "$output_msg"
+  assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Reported-by: Bob Brown <bob.brown@mail.xyz>'" "$output_msg"
   git restore patch_model.patch
 }
 
@@ -480,8 +526,8 @@ function test_signature_patch_multi_call()
   sed --in-place "s/<hash>/${head2_msg}/g" patch_model_complete.patch
 
   # Use each option once
-  signature_main --add-reviewed-by='John Doe <johndoe@kwkw.xyz>' patch_model.patch
   signature_main --add-acked-by='Michael Doe <michaeldoe@kwkw.xyz>' patch_model.patch
+  signature_main --add-reviewed-by='John Doe <johndoe@kwkw.xyz>' patch_model.patch
   signature_main --add-fixes='HEAD~2' patch_model.patch
   assertFileEquals 'patch_model.patch' 'patch_model_complete.patch'
   git restore patch_model.patch
@@ -497,12 +543,12 @@ function test_signature_patch_multi_call()
   # Test repetition avoidance by checking the result and warning message
   output_msg="$(signature_main -r -a'Michael Doe <michaeldoe@kwkw.xyz>' -r -f'HEAD~2' patch_model.patch)"
   assertFileEquals 'patch_model.patch' 'patch_model_complete.patch'
-  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Reviewed-by: John Doe <johndoe@kwkw.xyz>'" "$output_msg"
+  assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Reviewed-by: John Doe <johndoe@kwkw.xyz>'" "$output_msg"
   git restore patch_model.patch
 
   output_msg="$(signature_main -r -a'Michael Doe <michaeldoe@kwkw.xyz>' -a'Michael Doe <michaeldoe@kwkw.xyz>' -f'HEAD~2' patch_model.patch)"
   assertFileEquals 'patch_model.patch' 'patch_model_complete.patch'
-  assertEquals "(${LINENO})" "Skipping repeated trailer line: 'Acked-by: Michael Doe <michaeldoe@kwkw.xyz>'" "$output_msg"
+  assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Acked-by: Michael Doe <michaeldoe@kwkw.xyz>'" "$output_msg"
   git restore patch_model.patch
 }
 
@@ -825,7 +871,7 @@ function test_signature_commit_multi_call()
 
   # Get the fixed commit using the correct format and update the correct output
   correct_fixed_value="$(git rev-parse --short=12 HEAD~2) (\"fs: some_file: Fill file\")"
-  correct_output="${CORRECT_MULTI_CALL_LOG//<hash>/$correct_fixed_value}"
+  correct_output="${CORRECT_MULTI_CALL_LOG_1//<hash>/$correct_fixed_value}"
 
   assertEquals "(${LINENO})" "$correct_output" "$current_log"
   git reset --quiet --hard "$original_commit"
@@ -840,9 +886,40 @@ function test_signature_commit_multi_call()
 
   # Get the fixed commit using the correct format and update the correct output
   correct_fixed_value="$(git rev-parse --short=12 HEAD~2) (\"fs: some_file: Fill file\")"
-  correct_output="${CORRECT_MULTI_CALL_LOG//<hash>/$correct_fixed_value}"
+  correct_output="${CORRECT_MULTI_CALL_LOG_1//<hash>/$correct_fixed_value}"
 
   assertEquals "(${LINENO})" "$correct_output" "$current_log"
+  git reset --quiet --hard "$original_commit"
+
+  # Tests to check if the following trailers are being written in the correct order
+  signature_main -R'Michael Doe <michaeldoe@mail.xyz>' \
+    -C'Michael Doe <michaeldoe@mail.xyz>' \
+    -C'John Doe <johndoe@mail.xyz>' \
+    -t'Jane Doe <janedoe@mail.xyz>' \
+    -r'Jane Doe <janedoe@mail.xyz>' \
+    -s'Jane Doe <janedoe@mail.xyz>' HEAD~3
+  current_log="$(git log --max-count 4 --format="%(trailers)")"
+  assertEquals "(${LINENO})" "$CORRECT_MULTI_CALL_LOG_2" "$current_log"
+  git reset --quiet --hard "$original_commit"
+
+  signature_main -s'Jane Doe <janedoe@mail.xyz>' \
+    -t'Jane Doe <janedoe@mail.xyz>' \
+    -R'Michael Doe <michaeldoe@mail.xyz>' \
+    -C'John Doe <johndoe@mail.xyz>' \
+    -C'Michael Doe <michaeldoe@mail.xyz>' \
+    -r'Jane Doe <janedoe@mail.xyz>' HEAD~3
+  current_log="$(git log --max-count 4 --format="%(trailers)")"
+  assertEquals "(${LINENO})" "$CORRECT_MULTI_CALL_LOG_2" "$current_log"
+  git reset --quiet --hard "$original_commit"
+
+  signature_main -C'Michael Doe <michaeldoe@mail.xyz>' \
+    -s'Jane Doe <janedoe@mail.xyz>' \
+    -t'Jane Doe <janedoe@mail.xyz>' \
+    -r'Jane Doe <janedoe@mail.xyz>' \
+    -R'Michael Doe <michaeldoe@mail.xyz>' \
+    -C'John Doe <johndoe@mail.xyz>' HEAD~3
+  current_log="$(git log --max-count 4 --format="%(trailers)")"
+  assertEquals "(${LINENO})" "$CORRECT_MULTI_CALL_LOG_2" "$current_log"
   git reset --quiet --hard "$original_commit"
 }
 
