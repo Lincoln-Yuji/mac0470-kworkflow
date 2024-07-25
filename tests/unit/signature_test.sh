@@ -191,8 +191,8 @@ Signed-off-by: kw <kw@kwkw.xyz>'
 # --add-reviewed-by     or -r
 # --add-signed-off-by   or -s
 #
-# This variable also helps to verify if trailers are being
-# written in a typical expected order imposed by the kernel documentation
+# This variable helps to verify if trailers are being written
+# in a typical expected order imposed by the kernel documentation
 CORRECT_MULTI_CALL_LOG_2='Signed-off-by: kw <kw@kwkw.xyz>
 Reported-by: Michael Doe <michaeldoe@mail.xyz>
 Co-developed-by: Michael Doe <michaeldoe@mail.xyz>
@@ -297,28 +297,73 @@ function tearDown()
   fi
 }
 
-function test_signature_patch_signed_off_by()
+function test_signature_patch_single_option()
 {
-  local output_msg
-  local return_status
+  local head2_msg
 
-  # Long option
   signature_main --add-signed-off-by='Jane Doe <janedoe@mail.xyz>' patch_model.patch
   assertFileEquals 'patch_model.patch' 'patch_model_signed_off.patch'
   git restore patch_model.patch
 
-  # Short option
   signature_main -s'Jane Doe <janedoe@mail.xyz>' patch_model.patch
   assertFileEquals 'patch_model.patch' 'patch_model_signed_off.patch'
   git restore patch_model.patch
 
-  # Test repetition avoidance by checking the result and warning message
-  output_msg="$(signature_main -s'Jane Doe <janedoe@mail.xyz>' -s'Jane Doe <janedoe@mail.xyz>' patch_model.patch)"
-  assertFileEquals 'patch_model.patch' 'patch_model_signed_off.patch'
-  assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Signed-off-by: Jane Doe <janedoe@mail.xyz>'" "$output_msg"
+  signature_main --add-reviewed-by='Jane Doe <janedoe@mail.xyz>' patch_model.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_reviewed.patch'
   git restore patch_model.patch
 
-  # Testing default behavior with git config
+  signature_main -r'Jane Doe <janedoe@mail.xyz>' patch_model.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_reviewed.patch'
+  git restore patch_model.patch
+
+  signature_main --add-acked-by='Michael Doe <michaeldoe@kwkw.xyz>' patch_model.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_acked.patch'
+  git restore patch_model.patch
+
+  signature_main -a'Michael Doe <michaeldoe@kwkw.xyz>' patch_model.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_acked.patch'
+  git restore patch_model.patch
+
+  signature_main --add-tested-by='Bob Brown <bob.brown@mail.xyz>' patch_model.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_tested.patch'
+  git restore patch_model.patch
+
+  signature_main -t'Bob Brown <bob.brown@mail.xyz>' patch_model.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_tested.patch'
+  git restore patch_model.patch
+
+  signature_main --add-co-developed-by='Bob Brown <bob.brown@mail.xyz>' patch_model.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_co_developed.patch'
+  git restore patch_model.patch
+
+  signature_main -C'Bob Brown <bob.brown@mail.xyz>' patch_model.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_co_developed.patch'
+  git restore patch_model.patch
+
+  signature_main --add-reported-by='Bob Brown <bob.brown@mail.xyz>' patch_model.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_reported.patch'
+  git restore patch_model.patch
+
+  signature_main -R'Bob Brown <bob.brown@mail.xyz>' patch_model.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_reported.patch'
+  git restore patch_model.patch
+
+  head2_msg="$(git rev-parse --short=12 HEAD~2) (\"fs: some_file: Fill file\")"
+
+  signature_main --add-fixes='HEAD~2' patch_model.patch
+  sed --in-place "s/<hash>/${head2_msg}/g" patch_model_fixes.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_fixes.patch'
+  git restore patch_model.patch patch_model_fixes.patch
+
+  signature_main -f'HEAD~2' patch_model.patch
+  sed --in-place "s/<hash>/${head2_msg}/g" patch_model_fixes.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_fixes.patch'
+  git restore patch_model.patch patch_model_fixes.patch
+}
+
+function test_signature_patch_single_option_default()
+{
   git config user.name 'Jane Doe'
   git config user.email 'janedoe@mail.xyz'
 
@@ -326,162 +371,105 @@ function test_signature_patch_signed_off_by()
   assertFileEquals 'patch_model.patch' 'patch_model_signed_off.patch'
   git restore patch_model.patch
 
-  # Simulating non-configured user.name and user.email by setting local empty values.
-  # This has to be tested this way because we CAN NOT unset git config using:
-  # 'git config --global --unset ( user.name | user.email )'
-  # Since this would affect user's global git configuration outside tests.
-  git config user.name ''
-  git config user.email ''
-
-  output_msg="$(signature_main --add-signed-off-by)"
-  return_status="$?"
-  assertEquals "(${LINENO})" 22 "$return_status"
-  assertEquals "(${LINENO})" \
-    "You must configure your user.name and user.email with git to use --add-signed-off-by or -s without an argument" \
-    "$output_msg"
-}
-
-function test_signature_patch_reviewed_by()
-{
-  local output_msg
-
-  # Long option
-  signature_main --add-reviewed-by='Jane Doe <janedoe@mail.xyz>' patch_model.patch
+  signature_main -r patch_model.patch
   assertFileEquals 'patch_model.patch' 'patch_model_reviewed.patch'
   git restore patch_model.patch
 
-  # Short option
-  signature_main -r'Jane Doe <janedoe@mail.xyz>' patch_model.patch
-  assertFileEquals 'patch_model.patch' 'patch_model_reviewed.patch'
+  git config user.name 'Michael Doe'
+  git config user.email 'michaeldoe@kwkw.xyz'
+
+  signature_main -a patch_model.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_acked.patch'
   git restore patch_model.patch
 
-  # Test repetition avoidance by checking the result and warning message
-  output_msg="$(signature_main -r'Jane Doe <janedoe@mail.xyz>' -r'Jane Doe <janedoe@mail.xyz>' patch_model.patch)"
-  assertFileEquals 'patch_model.patch' 'patch_model_reviewed.patch'
-  assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Reviewed-by: Jane Doe <janedoe@mail.xyz>'" "$output_msg"
+  git config user.name 'Bob Brown'
+  git config user.email 'bob.brown@mail.xyz'
+
+  signature_main -t patch_model.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_tested.patch'
+  git restore patch_model.patch
+
+  signature_main -C patch_model.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_co_developed.patch'
+  git restore patch_model.patch
+
+  signature_main -R patch_model.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_reported.patch'
   git restore patch_model.patch
 }
 
-function test_signature_patch_full_review()
+function test_signature_patch_multi_options()
 {
-  local output_msg
+  local head2_msg
 
-  # Long option
-  signature_main --add-reviewed-by='Jane Doe <janedoe@mail.xyz>' patch_model.patch
-  signature_main --add-signed-off-by='Jane Doe <janedoe@mail.xyz>' patch_model.patch
-  assertFileEquals 'patch_model.patch' 'patch_model_full_review.patch'
-  git restore patch_model.patch
-
-  # Short option
   signature_main -r'Jane Doe <janedoe@mail.xyz>' patch_model.patch
   signature_main -s'Jane Doe <janedoe@mail.xyz>' patch_model.patch
   assertFileEquals 'patch_model.patch' 'patch_model_full_review.patch'
   git restore patch_model.patch
 
-  # Setting different local git config to test default behavior
-  git config --local user.name 'Jane Doe'
-  git config --local user.email 'janedoe@mail.xyz'
+  signature_main -r'Jane Doe <janedoe@mail.xyz>' -s'Jane Doe <janedoe@mail.xyz>' patch_model.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_full_review.patch'
+  git restore patch_model.patch
 
-  # Simulating how usually a maintainer will sign a review before applying the changes
+  head2_msg="$(git rev-parse --short=12 HEAD~2) (\"fs: some_file: Fill file\")"
+  sed --in-place "s/<hash>/${head2_msg}/g" patch_model_complete.patch
+
+  signature_main --add-acked-by='Michael Doe <michaeldoe@kwkw.xyz>' patch_model.patch
+  signature_main --add-reviewed-by='John Doe <johndoe@kwkw.xyz>' patch_model.patch
+  signature_main --add-fixes='HEAD~2' patch_model.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_complete.patch'
+  git restore patch_model.patch
+
+  signature_main -r'John Doe <johndoe@kwkw.xyz>' -a'Michael Doe <michaeldoe@kwkw.xyz>' -f'HEAD~2' patch_model.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_complete.patch'
+  git restore patch_model.patch
+
+  git config user.name 'Jane Doe'
+  git config user.email 'janedoe@mail.xyz'
+
   signature_main -r -s patch_model.patch
   assertFileEquals 'patch_model.patch' 'patch_model_full_review.patch'
   git restore patch_model.patch
 
-  # Test repetition avoidance by checking the result and warning message
-  output_msg="$(signature_main -r -s -r patch_model.patch)"
+  signature_main -s -r patch_model.patch
+  assertFileEquals 'patch_model.patch' 'patch_model_full_review.patch'
+  git restore patch_model.patch
+}
+
+function test_signature_patch_repetition_avoidance()
+{
+  local output_msg
+
+  output_msg="$(signature_main -s'Jane Doe <janedoe@mail.xyz>' -s'Jane Doe <janedoe@mail.xyz>' patch_model.patch)"
+  assertFileEquals 'patch_model.patch' 'patch_model_signed_off.patch'
+  assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Signed-off-by: Jane Doe <janedoe@mail.xyz>'" "$output_msg"
+  git restore patch_model.patch
+
+  output_msg="$(signature_main -r'Jane Doe <janedoe@mail.xyz>' -r'Jane Doe <janedoe@mail.xyz>' patch_model.patch)"
+  assertFileEquals 'patch_model.patch' 'patch_model_reviewed.patch'
+  assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Reviewed-by: Jane Doe <janedoe@mail.xyz>'" "$output_msg"
+  git restore patch_model.patch
+
+  output_msg="$(signature_main -r'Jane Doe <janedoe@mail.xyz>' -s'Jane Doe <janedoe@mail.xyz>' -r'Jane Doe <janedoe@mail.xyz>' patch_model.patch)"
   assertFileEquals 'patch_model.patch' 'patch_model_full_review.patch'
   assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Reviewed-by: Jane Doe <janedoe@mail.xyz>'" "$output_msg"
   git restore patch_model.patch
 
-  output_msg="$(signature_main -r -s -s patch_model.patch)"
+  output_msg="$(signature_main -r'Jane Doe <janedoe@mail.xyz>' -s'Jane Doe <janedoe@mail.xyz>' -s'Jane Doe <janedoe@mail.xyz>' patch_model.patch)"
   assertFileEquals 'patch_model.patch' 'patch_model_full_review.patch'
   assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Signed-off-by: Jane Doe <janedoe@mail.xyz>'" "$output_msg"
   git restore patch_model.patch
-}
 
-function test_signature_patch_acked_by()
-{
-  local output_msg
-
-  # Long option
-  signature_main --add-acked-by='Michael Doe <michaeldoe@kwkw.xyz>' patch_model.patch
-  assertFileEquals 'patch_model.patch' 'patch_model_acked.patch'
-  git restore patch_model.patch
-
-  # Short option
-  signature_main -a'Michael Doe <michaeldoe@kwkw.xyz>' patch_model.patch
-  assertFileEquals 'patch_model.patch' 'patch_model_acked.patch'
-  git restore patch_model.patch
-
-  # Test repetition avoidance by checking the result and warning message
   output_msg="$(signature_main -a'Michael Doe <michaeldoe@kwkw.xyz>' -a'Michael Doe <michaeldoe@kwkw.xyz>' patch_model.patch)"
   assertFileEquals 'patch_model.patch' 'patch_model_acked.patch'
   assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Acked-by: Michael Doe <michaeldoe@kwkw.xyz>'" "$output_msg"
   git restore patch_model.patch
-}
 
-function test_signature_patch_fixes()
-{
-  local head2_msg
-
-  # Store the correct message's format
-  head2_msg="$(git rev-parse --short=12 HEAD~2) (\"fs: some_file: Fill file\")"
-
-  # Long option
-  signature_main --add-fixes='HEAD~2' patch_model.patch
-
-  # Write trailer value with correct hash
-  sed --in-place "s/<hash>/${head2_msg}/g" patch_model_fixes.patch
-
-  assertFileEquals 'patch_model.patch' 'patch_model_fixes.patch'
-  git restore patch_model.patch patch_model_fixes.patch
-
-  # Short option
-  signature_main -f'HEAD~2' patch_model.patch
-
-  # Write trailer value with correct hash
-  sed --in-place "s/<hash>/${head2_msg}/g" patch_model_fixes.patch
-
-  assertFileEquals 'patch_model.patch' 'patch_model_fixes.patch'
-  git restore patch_model.patch patch_model_fixes.patch
-}
-
-function test_signature_patch_tested_by()
-{
-  local output_msg
-
-  # Long option
-  signature_main --add-tested-by='Bob Brown <bob.brown@mail.xyz>' patch_model.patch
-  assertFileEquals 'patch_model.patch' 'patch_model_tested.patch'
-  git restore patch_model.patch
-
-  # Short option
-  signature_main -t'Bob Brown <bob.brown@mail.xyz>' patch_model.patch
-  assertFileEquals 'patch_model.patch' 'patch_model_tested.patch'
-  git restore patch_model.patch
-
-  # Test repetition avoidance by checking the result and warning message
   output_msg="$(signature_main -t'Bob Brown <bob.brown@mail.xyz>' -t'Bob Brown <bob.brown@mail.xyz>' patch_model.patch)"
   assertFileEquals 'patch_model.patch' 'patch_model_tested.patch'
   assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Tested-by: Bob Brown <bob.brown@mail.xyz>'" "$output_msg"
   git restore patch_model.patch
-}
 
-function test_signature_patch_co_developed_by()
-{
-  local output_msg
-
-  # Long option
-  signature_main --add-co-developed-by='Bob Brown <bob.brown@mail.xyz>' patch_model.patch
-  assertFileEquals 'patch_model.patch' 'patch_model_co_developed.patch'
-  git restore patch_model.patch
-
-  # Short option
-  signature_main -C'Bob Brown <bob.brown@mail.xyz>' patch_model.patch
-  assertFileEquals 'patch_model.patch' 'patch_model_co_developed.patch'
-  git restore patch_model.patch
-
-  # Test repetition avoidance by checking both result and warning message
   output_msg="$(signature_main -C'Bob Brown <bob.brown@mail.xyz>' -s'Bob Brown <bob.brown@mail.xyz>' patch_model.patch)"
   assertFileEquals 'patch_model.patch' 'patch_model_co_developed.patch'
   assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Signed-off-by: Bob Brown <bob.brown@mail.xyz>'" "$output_msg"
@@ -491,56 +479,25 @@ function test_signature_patch_co_developed_by()
   assertFileEquals 'patch_model.patch' 'patch_model_co_developed.patch'
   assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Signed-off-by: Bob Brown <bob.brown@mail.xyz>'" "$output_msg"
   git restore patch_model.patch
-}
 
-function test_signature_patch_reported_by()
-{
-  local output_msg
-
-  # Long option
-  signature_main --add-reported-by='Bob Brown <bob.brown@mail.xyz>' patch_model.patch
-  assertFileEquals 'patch_model.patch' 'patch_model_reported.patch'
-  git restore patch_model.patch
-
-  # Short option
-  signature_main -R'Bob Brown <bob.brown@mail.xyz>' patch_model.patch
-  assertFileEquals 'patch_model.patch' 'patch_model_reported.patch'
-  git restore patch_model.patch
-
-  # Test repetition avoidance by checking the result and warning message
   output_msg="$(signature_main -R'Bob Brown <bob.brown@mail.xyz>' -R'Bob Brown <bob.brown@mail.xyz>' patch_model.patch)"
   assertFileEquals 'patch_model.patch' 'patch_model_reported.patch'
   assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Reported-by: Bob Brown <bob.brown@mail.xyz>'" "$output_msg"
   git restore patch_model.patch
+
 }
 
-function test_signature_patch_multi_call()
+function test_signature_patch_repetition_avoidance_default()
 {
   local output_msg
   local head2_msg
 
-  # Store the correct message's format
   head2_msg="$(git rev-parse --short=12 HEAD~2) (\"fs: some_file: Fill file\")"
-
-  # Write trailer line with correct hash
   sed --in-place "s/<hash>/${head2_msg}/g" patch_model_complete.patch
-
-  # Use each option once
-  signature_main --add-acked-by='Michael Doe <michaeldoe@kwkw.xyz>' patch_model.patch
-  signature_main --add-reviewed-by='John Doe <johndoe@kwkw.xyz>' patch_model.patch
-  signature_main --add-fixes='HEAD~2' patch_model.patch
-  assertFileEquals 'patch_model.patch' 'patch_model_complete.patch'
-  git restore patch_model.patch
-
-  # Use each option once in the same command
-  signature_main -r'John Doe <johndoe@kwkw.xyz>' -a'Michael Doe <michaeldoe@kwkw.xyz>' -f'HEAD~2' patch_model.patch
-  assertFileEquals 'patch_model.patch' 'patch_model_complete.patch'
-  git restore patch_model.patch
 
   git config --local user.name 'John Doe'
   git config --local user.email 'johndoe@kwkw.xyz'
 
-  # Test repetition avoidance by checking the result and warning message
   output_msg="$(signature_main -r -a'Michael Doe <michaeldoe@kwkw.xyz>' -r -f'HEAD~2' patch_model.patch)"
   assertFileEquals 'patch_model.patch' 'patch_model_complete.patch'
   assertEquals "(${LINENO})" "Skipping duplicated trailer line: 'Reviewed-by: John Doe <johndoe@kwkw.xyz>'" "$output_msg"
@@ -552,269 +509,83 @@ function test_signature_patch_multi_call()
   git restore patch_model.patch
 }
 
-function test_signature_commit_signed_off_by()
+function test_signature_commit_single_option()
 {
   local original_commit
   local current_log
+  local correct_fixed_value
 
   # Save SHA from current commit allowing tests to reset the repository
   original_commit="$(git rev-parse HEAD)"
 
-  # Long option while modifying only the last commit
-  signature_main --add-signed-off-by='Jane Doe <janedoe@mail.xyz>'
-  current_log="$(git log --max-count 2 --format="%(trailers)")"
-  assertEquals "(${LINENO})" "$CORRECT_SIGNED_HEAD" "$current_log"
-  git reset --quiet --hard "$original_commit"
-
-  # Short option while modifying only the last commit
   signature_main -s'Jane Doe <janedoe@mail.xyz>'
   current_log="$(git log --max-count 2 --format="%(trailers)")"
   assertEquals "(${LINENO})" "$CORRECT_SIGNED_HEAD" "$current_log"
   git reset --quiet --hard "$original_commit"
 
-  # Modifying the last 3 commits
   signature_main -s'Jane Doe <janedoe@mail.xyz>' 'HEAD~3'
   current_log="$(git log --max-count 4 --format="%(trailers)")"
   assertEquals "(${LINENO})" "$CORRECT_SIGNED_LOG" "$current_log"
   git reset --quiet --hard "$original_commit"
 
-  # Setting up a different local config to test default behavior
-  git config --local user.name 'Jane Doe'
-  git config --local user.email 'janedoe@mail.xyz'
-
-  # Modifying the last 3 commits with default behavior
-  signature_main -s HEAD~3
-  current_log="$(git log --max-count 4 --format="%(trailers)")"
-  assertEquals "(${LINENO})" "$CORRECT_SIGNED_LOG" "$current_log"
-  git reset --quiet --hard "$original_commit"
-}
-
-function test_signature_commit_reviewed_by()
-{
-  local original_commit
-  local current_log
-
-  # Save SHA from current commit allowing tests to reset the repository
-  original_commit="$(git rev-parse HEAD)"
-
-  # Long option while modifying only the last commit
-  signature_main --add-reviewed-by='Jane Doe <janedoe@mail.xyz>'
-  current_log="$(git log --max-count 2 --format="%(trailers)")"
-  assertEquals "(${LINENO})" "$CORRECT_REVIEWED_HEAD" "$current_log"
-  git reset --quiet --hard "$original_commit"
-
-  # Short option while modifying only the last commit
   signature_main -r'Jane Doe <janedoe@mail.xyz>'
   current_log="$(git log --max-count 2 --format="%(trailers)")"
   assertEquals "(${LINENO})" "$CORRECT_REVIEWED_HEAD" "$current_log"
   git reset --quiet --hard "$original_commit"
 
-  # Modifying the last 3 commits
   signature_main -r'Jane Doe <janedoe@mail.xyz>' 'HEAD~3'
   current_log="$(git log --max-count 4 --format="%(trailers)")"
   assertEquals "(${LINENO})" "$CORRECT_REVIEWED_LOG" "$current_log"
   git reset --quiet --hard "$original_commit"
 
-  # Setting up a different local config to test default behavior
-  git config --local user.name 'Jane Doe'
-  git config --local user.email 'janedoe@mail.xyz'
-
-  # Modifying the last 3 commits with default behavior
-  signature_main -r HEAD~3
-  current_log="$(git log --max-count 4 --format="%(trailers)")"
-  assertEquals "(${LINENO})" "$CORRECT_REVIEWED_LOG" "$current_log"
-  git reset --quiet --hard "$original_commit"
-}
-
-function test_signature_commit_full_review()
-{
-  local original_commit
-  local current_log
-
-  # Save SHA from current commit allowing tests to reset the repository
-  original_commit="$(git rev-parse HEAD)"
-
-  # Long options
-  signature_main --add-reviewed-by='Jane Doe <janedoe@mail.xyz>'
-  signature_main --add-signed-off-by='Jane Doe <janedoe@mail.xyz>'
-  current_log="$(git log --max-count 2 --format="%(trailers)")"
-  assertEquals "(${LINENO})" "$CORRECT_FULL_REVIEW_HEAD" "$current_log"
-  git reset --quiet --hard "$original_commit"
-
-  # Short options
-  signature_main -r'Jane Doe <janedoe@mail.xyz>'
-  signature_main -s'Jane Doe <janedoe@mail.xyz>'
-  current_log="$(git log --max-count 2 --format="%(trailers)")"
-  assertEquals "(${LINENO})" "$CORRECT_FULL_REVIEW_HEAD" "$current_log"
-  git reset --quiet --hard "$original_commit"
-
-  # Modifying the last 3 commits
-  signature_main -r'Jane Doe <janedoe@mail.xyz>' HEAD~3
-  signature_main -s'Jane Doe <janedoe@mail.xyz>' HEAD~3
-  current_log="$(git log --max-count 4 --format="%(trailers)")"
-  assertEquals "(${LINENO})" "$CORRECT_FULL_REVIEW_LOG" "$current_log"
-  git reset --quiet --hard "$original_commit"
-
-  # Setting up a different local config to test default behavior
-  git config --local user.name 'Jane Doe'
-  git config --local user.email 'janedoe@mail.xyz'
-
-  # Modifying the last 3 commits with default behavior
-  signature_main -r -s HEAD~3
-  current_log="$(git log --max-count 4 --format="%(trailers)")"
-  assertEquals "(${LINENO})" "$CORRECT_FULL_REVIEW_LOG" "$current_log"
-  git reset --quiet --hard "$original_commit"
-}
-
-function test_signature_commit_acked_by()
-{
-  local original_commit
-  local current_log
-
-  # Save SHA from current commit allowing tests to reset the repository
-  original_commit="$(git rev-parse HEAD)"
-
-  # Long option while modifying only the last commit
-  signature_main --add-acked-by='Michael Doe <michaeldoe@kwkw.xyz>'
-  current_log="$(git log --max-count 2 --format="%(trailers)")"
-  assertEquals "(${LINENO})" "$CORRECT_ACKED_HEAD" "$current_log"
-  git reset --quiet --hard "$original_commit"
-
-  # Short option while modifying only the last commit
   signature_main -a'Michael Doe <michaeldoe@kwkw.xyz>'
   current_log="$(git log --max-count 2 --format="%(trailers)")"
   assertEquals "(${LINENO})" "$CORRECT_ACKED_HEAD" "$current_log"
   git reset --quiet --hard "$original_commit"
 
-  # Modifying the last 3 commits
   signature_main -a'Michael Doe <michaeldoe@kwkw.xyz>' 'HEAD~3'
   current_log="$(git log --max-count 4 --format="%(trailers)")"
   assertEquals "(${LINENO})" "$CORRECT_ACKED_LOG" "$current_log"
   git reset --quiet --hard "$original_commit"
 
-  # Setting up a different local config to test default behavior
-  git config --local user.name 'Michael Doe'
-  git config --local user.email 'michaeldoe@kwkw.xyz'
-
-  # Modifying the last 3 commits with default behavior
-  signature_main -a HEAD~3
-  current_log="$(git log --max-count 4 --format="%(trailers)")"
-  assertEquals "(${LINENO})" "$CORRECT_ACKED_LOG" "$current_log"
-  git reset --quiet --hard "$original_commit"
-}
-
-function test_signature_commit_fixes()
-{
-  local original_commit
-  local current_log
-  local correct_fixed_value
-  local correct_output
-
-  # Save SHA from current commit allowing tests to reset the repository
-  original_commit="$(git rev-parse HEAD)"
-
-  # Long option
-  signature_main --add-fixes=HEAD~2
-
-  # Get the current modified log
-  current_log="$(git log --max-count 2 --format="%(trailers)")"
-
-  # Get the fixed commit using the correct format and update the correct output
-  correct_fixed_value="$(git rev-parse --short=12 HEAD~2) (\"fs: some_file: Fill file\")"
-  correct_output="${CORRECT_FIXES_HEAD//<hash>/$correct_fixed_value}"
-
-  assertEquals "(${LINENO})" "$correct_output" "$current_log"
-  git reset --quiet --hard "$original_commit"
-
-  # Short option
-  signature_main -fHEAD~2
-
-  # Get the current modified log
-  current_log="$(git log --max-count 2 --format="%(trailers)")"
-
-  # Get the fixed commit using the correct format and update the correct output
-  correct_fixed_value="$(git rev-parse --short=12 HEAD~2) (\"fs: some_file: Fill file\")"
-  correct_output="${CORRECT_FIXES_HEAD//<hash>/$correct_fixed_value}"
-
-  assertEquals "(${LINENO})" "$correct_output" "$current_log"
-  git reset --quiet --hard "$original_commit"
-}
-
-function test_signature_commit_tested_by()
-{
-  local original_commit
-  local current_log
-
-  # Save SHA from current commit allowing tests to reset the repository
-  original_commit="$(git rev-parse HEAD)"
-
-  # Long option while modifying only the last commit
-  signature_main --add-tested-by='Bob Brown <bob.brown@mail.xyz>'
-  current_log="$(git log --max-count 2 --format="%(trailers)")"
-  assertEquals "(${LINENO})" "$CORRECT_TESTED_HEAD" "$current_log"
-  git reset --quiet --hard "$original_commit"
-
-  # Short option while modifying only the last commit
   signature_main -t'Bob Brown <bob.brown@mail.xyz>'
   current_log="$(git log --max-count 2 --format="%(trailers)")"
   assertEquals "(${LINENO})" "$CORRECT_TESTED_HEAD" "$current_log"
   git reset --quiet --hard "$original_commit"
 
-  # Modifying the last 3 commits
   signature_main -t'Bob Brown <bob.brown@mail.xyz>' 'HEAD~3'
   current_log="$(git log --max-count 4 --format="%(trailers)")"
   assertEquals "(${LINENO})" "$CORRECT_TESTED_LOG" "$current_log"
   git reset --quiet --hard "$original_commit"
 
-  # Setting up a different local config to test default behavior
-  git config --local user.name 'Bob Brown'
-  git config --local user.email 'bob.brown@mail.xyz'
-
-  # Modifying the last 3 commits with default behavior
-  signature_main -t HEAD~3
-  current_log="$(git log --max-count 4 --format="%(trailers)")"
-  assertEquals "(${LINENO})" "$CORRECT_TESTED_LOG" "$current_log"
-  git reset --quiet --hard "$original_commit"
-}
-
-function test_signature_commit_co_developed_by()
-{
-  local original_commit
-  local current_log
-
-  # Save SHA from current commit allowing tests to reset the repository
-  original_commit="$(git rev-parse HEAD)"
-
-  # Long option while modifying only the last commit
-  signature_main --add-co-developed-by='Bob Brown <bob.brown@mail.xyz>'
-  current_log="$(git log --max-count 2 --format="%(trailers)")"
-  assertEquals "(${LINENO})" "$CORRECT_CO_DEVELOPED_HEAD" "$current_log"
-  git reset --quiet --hard "$original_commit"
-
-  # Short option while modifying only the last commit
   signature_main -C'Bob Brown <bob.brown@mail.xyz>'
   current_log="$(git log --max-count 2 --format="%(trailers)")"
   assertEquals "(${LINENO})" "$CORRECT_CO_DEVELOPED_HEAD" "$current_log"
   git reset --quiet --hard "$original_commit"
 
-  # Modifying the last 3 commits
   signature_main -C'Bob Brown <bob.brown@mail.xyz>' 'HEAD~3'
   current_log="$(git log --max-count 4 --format="%(trailers)")"
   assertEquals "(${LINENO})" "$CORRECT_CO_DEVELOPED_LOG" "$current_log"
   git reset --quiet --hard "$original_commit"
 
-  # Setting up a different local config to test default behavior
-  git config --local user.name 'Bob Brown'
-  git config --local user.email 'bob.brown@mail.xyz'
+  signature_main -R'Bob Brown <bob.brown@mail.xyz>'
+  current_log="$(git log --max-count 2 --format="%(trailers)")"
+  assertEquals "(${LINENO})" "$CORRECT_REPORTED_HEAD" "$current_log"
+  git reset --quiet --hard "$original_commit"
 
-  # Modifying the last 3 commits with default behavior
-  signature_main -C HEAD~3
+  signature_main -R'Bob Brown <bob.brown@mail.xyz>' 'HEAD~3'
   current_log="$(git log --max-count 4 --format="%(trailers)")"
-  assertEquals "(${LINENO})" "$CORRECT_CO_DEVELOPED_LOG" "$current_log"
+  assertEquals "(${LINENO})" "$CORRECT_REPORTED_LOG" "$current_log"
+  git reset --quiet --hard "$original_commit"
+
+  signature_main -f'HEAD~2'
+  current_log="$(git log --max-count 2 --format="%(trailers)")"
+  correct_fixed_value="$(git rev-parse --short=12 HEAD~2) (\"fs: some_file: Fill file\")"
+  assertEquals "(${LINENO})" "${CORRECT_FIXES_HEAD//<hash>/$correct_fixed_value}" "$current_log"
   git reset --quiet --hard "$original_commit"
 }
 
-function test_signature_commit_reported_by()
+function test_signature_commit_single_option_default()
 {
   local original_commit
   local current_log
@@ -822,76 +593,72 @@ function test_signature_commit_reported_by()
   # Save SHA from current commit allowing tests to reset the repository
   original_commit="$(git rev-parse HEAD)"
 
-  # Long option while modifying only the last commit
-  signature_main --add-reported-by='Bob Brown <bob.brown@mail.xyz>'
-  current_log="$(git log --max-count 2 --format="%(trailers)")"
-  assertEquals "(${LINENO})" "$CORRECT_REPORTED_HEAD" "$current_log"
-  git reset --quiet --hard "$original_commit"
+  git config user.name 'Jane Doe'
+  git config user.email 'janedoe@mail.xyz'
 
-  # Short option while modifying only the last commit
-  signature_main -R'Bob Brown <bob.brown@mail.xyz>'
-  current_log="$(git log --max-count 2 --format="%(trailers)")"
-  assertEquals "(${LINENO})" "$CORRECT_REPORTED_HEAD" "$current_log"
-  git reset --quiet --hard "$original_commit"
-
-  # Modifying the last 3 commits
-  signature_main -R'Bob Brown <bob.brown@mail.xyz>' 'HEAD~3'
+  signature_main -s HEAD~3
   current_log="$(git log --max-count 4 --format="%(trailers)")"
-  assertEquals "(${LINENO})" "$CORRECT_REPORTED_LOG" "$current_log"
+  assertEquals "(${LINENO})" "$CORRECT_SIGNED_LOG" "$current_log"
   git reset --quiet --hard "$original_commit"
 
-  # Setting up a different local config to test default behavior
-  git config --local user.name 'Bob Brown'
-  git config --local user.email 'bob.brown@mail.xyz'
+  signature_main -r HEAD~3
+  current_log="$(git log --max-count 4 --format="%(trailers)")"
+  assertEquals "(${LINENO})" "$CORRECT_REVIEWED_LOG" "$current_log"
+  git reset --quiet --hard "$original_commit"
 
-  # Modifying the last 3 commits with default behavior
+  git config user.name 'Michael Doe'
+  git config user.email 'michaeldoe@kwkw.xyz'
+
+  signature_main -a HEAD~3
+  current_log="$(git log --max-count 4 --format="%(trailers)")"
+  assertEquals "(${LINENO})" "$CORRECT_ACKED_LOG" "$current_log"
+  git reset --quiet --hard "$original_commit"
+
+  git config user.name 'Bob Brown'
+  git config user.email 'bob.brown@mail.xyz'
+
+  signature_main -t HEAD~3
+  current_log="$(git log --max-count 4 --format="%(trailers)")"
+  assertEquals "(${LINENO})" "$CORRECT_TESTED_LOG" "$current_log"
+  git reset --quiet --hard "$original_commit"
+
+  signature_main -C HEAD~3
+  current_log="$(git log --max-count 4 --format="%(trailers)")"
+  assertEquals "(${LINENO})" "$CORRECT_CO_DEVELOPED_LOG" "$current_log"
+  git reset --quiet --hard "$original_commit"
+
   signature_main -R HEAD~3
   current_log="$(git log --max-count 4 --format="%(trailers)")"
   assertEquals "(${LINENO})" "$CORRECT_REPORTED_LOG" "$current_log"
   git reset --quiet --hard "$original_commit"
 }
 
-function test_signature_commit_multi_call()
+function test_signature_commit_multi_options()
 {
   local original_commit
   local current_log
   local correct_fixed_value
-  local correct_output
 
   # Save SHA from current commit allowing tests to reset the repository
   original_commit="$(git rev-parse HEAD)"
 
-  # Using each option once
-  signature_main --add-acked-by='Michael Doe <michaeldoe@kwkw.xyz>' 'HEAD~3'
-  signature_main --add-reviewed-by='John Doe <johndoe@kwkw.xyz>' 'HEAD~3'
-  signature_main --add-fixes='HEAD~2'
-
-  # Get the current modified log trailers
-  current_log="$(git log --max-count 4 --format="%(trailers)")"
-
-  # Get the fixed commit using the correct format and update the correct output
-  correct_fixed_value="$(git rev-parse --short=12 HEAD~2) (\"fs: some_file: Fill file\")"
-  correct_output="${CORRECT_MULTI_CALL_LOG_1//<hash>/$correct_fixed_value}"
-
-  assertEquals "(${LINENO})" "$correct_output" "$current_log"
+  signature_main -r'Jane Doe <janedoe@mail.xyz>' -s'Jane Doe <janedoe@mail.xyz>'
+  current_log="$(git log --max-count 2 --format="%(trailers)")"
+  assertEquals "(${LINENO})" "$CORRECT_FULL_REVIEW_HEAD" "$current_log"
   git reset --quiet --hard "$original_commit"
 
-  # Using two options in the same command end then fixes
-  signature_main -a'Michael Doe <michaeldoe@kwkw.xyz>' \
-    -r'John Doe <johndoe@kwkw.xyz>' HEAD~3
+  signature_main -r'Jane Doe <janedoe@mail.xyz>' -s'Jane Doe <janedoe@mail.xyz>' HEAD~3
+  current_log="$(git log --max-count 4 --format="%(trailers)")"
+  assertEquals "(${LINENO})" "$CORRECT_FULL_REVIEW_LOG" "$current_log"
+  git reset --quiet --hard "$original_commit"
+
+  signature_main -a'Michael Doe <michaeldoe@kwkw.xyz>' -r'John Doe <johndoe@kwkw.xyz>' HEAD~3
   signature_main -f'HEAD~2'
-
-  # Get the current modified log trailers
   current_log="$(git log --max-count 4 --format="%(trailers)")"
-
-  # Get the fixed commit using the correct format and update the correct output
   correct_fixed_value="$(git rev-parse --short=12 HEAD~2) (\"fs: some_file: Fill file\")"
-  correct_output="${CORRECT_MULTI_CALL_LOG_1//<hash>/$correct_fixed_value}"
-
-  assertEquals "(${LINENO})" "$correct_output" "$current_log"
+  assertEquals "(${LINENO})" "${CORRECT_MULTI_CALL_LOG_1//<hash>/$correct_fixed_value}" "$current_log"
   git reset --quiet --hard "$original_commit"
 
-  # Tests to check if the following trailers are being written in the correct order
   signature_main -R'Michael Doe <michaeldoe@mail.xyz>' \
     -C'Michael Doe <michaeldoe@mail.xyz>' \
     -C'John Doe <johndoe@mail.xyz>' \
@@ -921,6 +688,121 @@ function test_signature_commit_multi_call()
   current_log="$(git log --max-count 4 --format="%(trailers)")"
   assertEquals "(${LINENO})" "$CORRECT_MULTI_CALL_LOG_2" "$current_log"
   git reset --quiet --hard "$original_commit"
+
+  git config user.name 'Jane Doe'
+  git config user.email 'janedoe@mail.xyz'
+
+  signature_main -r -s HEAD~3
+  current_log="$(git log --max-count 4 --format="%(trailers)")"
+  assertEquals "(${LINENO})" "$CORRECT_FULL_REVIEW_LOG" "$current_log"
+  git reset --quiet --hard "$original_commit"
+}
+
+# Simulating non-configured user.name and user.email by setting local empty values.
+# This has to be tested this way because we CAN NOT unset git config using:
+# 'git config --global --unset ( user.name | user.email )'
+# Since this would affect user's global git configuration outside tests.
+function test_signature_no_user_or_email_config()
+{
+  local output_msg
+  local return_status
+
+  git config user.name ''
+  git config user.email ''
+
+  output_msg="$(signature_main --add-signed-off-by)"
+  return_status="$?"
+  assertEquals "(${LINENO})" 22 "$return_status"
+  assertEquals "(${LINENO})" \
+    "You must configure your user.name and user.email with git to use --add-signed-off-by or -s without an argument" \
+    "$output_msg"
+
+  output_msg="$(signature_main --add-reviewed-by)"
+  return_status="$?"
+  assertEquals "(${LINENO})" 22 "$return_status"
+  assertEquals "(${LINENO})" \
+    "You must configure your user.name and user.email with git to use --add-reviewed-by or -r without an argument" \
+    "$output_msg"
+
+  output_msg="$(signature_main --add-acked-by)"
+  return_status="$?"
+  assertEquals "(${LINENO})" 22 "$return_status"
+  assertEquals "(${LINENO})" \
+    "You must configure your user.name and user.email with git to use --add-acked-by or -a without an argument" \
+    "$output_msg"
+
+  output_msg="$(signature_main --add-tested-by)"
+  return_status="$?"
+  assertEquals "(${LINENO})" 22 "$return_status"
+  assertEquals "(${LINENO})" \
+    "You must configure your user.name and user.email with git to use --add-tested-by or -t without an argument" \
+    "$output_msg"
+
+  output_msg="$(signature_main --add-co-developed-by)"
+  return_status="$?"
+  assertEquals "(${LINENO})" 22 "$return_status"
+  assertEquals "(${LINENO})" \
+    "You must configure your user.name and user.email with git to use --add-co-developed-by or -C without an argument" \
+    "$output_msg"
+
+  output_msg="$(signature_main --add-reported-by)"
+  return_status="$?"
+  assertEquals "(${LINENO})" 22 "$return_status"
+  assertEquals "(${LINENO})" \
+    "You must configure your user.name and user.email with git to use --add-reported-by or -R without an argument" \
+    "$output_msg"
+}
+
+function test_signature_invalid_signature_format()
+{
+  local output_msg
+  local return_status
+
+  output_msg="$(signature_main --add-signed-off-by='Jane Doe <@mail.com>')"
+  return_status="$?"
+  assertEquals "(${LINENO})" 22 "$return_status"
+  assertEquals "(${LINENO})" 'Invalid signature format: Jane Doe <@mail.com>' "$output_msg"
+
+  output_msg="$(signature_main --add-reviewed-by='<janedoe@mail.com>')"
+  return_status="$?"
+  assertEquals "(${LINENO})" 22 "$return_status"
+  assertEquals "(${LINENO})" 'Invalid signature format: <janedoe@mail.com>' "$output_msg"
+
+  output_msg="$(signature_main --add-acked-by='Jane Doe')"
+  return_status="$?"
+  assertEquals "(${LINENO})" 22 "$return_status"
+  assertEquals "(${LINENO})" 'Invalid signature format: Jane Doe' "$output_msg"
+
+  output_msg="$(signature_main --add-tested-by='Jane Doe janedoe@mail.com')"
+  return_status="$?"
+  assertEquals "(${LINENO})" 22 "$return_status"
+  assertEquals "(${LINENO})" 'Invalid signature format: Jane Doe janedoe@mail.com' "$output_msg"
+
+  output_msg="$(signature_main --add-co-developed-by='Jane Doe <janedoe@mailcom>')"
+  return_status="$?"
+  assertEquals "(${LINENO})" 22 "$return_status"
+  assertEquals "(${LINENO})" 'Invalid signature format: Jane Doe <janedoe@mailcom>' "$output_msg"
+}
+
+function test_signature_invalid_commit_reference()
+{
+  local output_msg
+  local return_status
+
+  output_msg="$(signature_main --add-fixes)"
+  return_status="$?"
+  assertEquals "(${LINENO})" 22 "$return_status"
+  assertEquals "(${LINENO})" 'The option --add-fixes or -f demands an argument' "$output_msg"
+
+  output_msg="$(signature_main --add-fixes='8ac76z12wac3')"
+  return_status="$?"
+  assertEquals "(${LINENO})" 22 "$return_status"
+  assertEquals "(${LINENO})" 'Invalid commit reference with --add-fixes or -f: 8ac76z12wac3' "$output_msg"
+
+  output_msg="$(signature_main --add-fixes='HEAD~9999')"
+  return_status="$?"
+  assertEquals "(${LINENO})" 22 "$return_status"
+  assertEquals "(${LINENO})" 'Invalid commit reference with --add-fixes or -f: HEAD~9999' "$output_msg"
 }
 
 invoke_shunit
