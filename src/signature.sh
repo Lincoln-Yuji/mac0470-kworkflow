@@ -6,12 +6,12 @@ declare -gA options_values
 # Define a constant to store all trailer tags
 declare -gA TRAILER_TAGS
 
-TRAILER_TAGS['SIGNED_OFF_BY']='Signed-off-by:'
-TRAILER_TAGS['REVIEWED_BY']='Reviewed-by:'
-TRAILER_TAGS['ACKED_BY']='Acked-by:'
-TRAILER_TAGS['TESTED_BY']='Tested-by:'
 TRAILER_TAGS['REPORTED_BY']='Reported-by:'
 TRAILER_TAGS['CO_DEVELOPED_BY']='Co-developed-by:'
+TRAILER_TAGS['ACKED_BY']='Acked-by:'
+TRAILER_TAGS['TESTED_BY']='Tested-by:'
+TRAILER_TAGS['REVIEWED_BY']='Reviewed-by:'
+TRAILER_TAGS['SIGNED_OFF_BY']='Signed-off-by:'
 TRAILER_TAGS['FIXES']='Fixes:'
 
 # This structure organizes all the parsed trailer lines by their tags.
@@ -243,10 +243,14 @@ function group_by_email()
 
   while read -d ',' -r trailer; do
     # Extract email from trailer
-    email=$(printf '%s' "$trailer" | grep --only-matching --perl-regexp '<.*?>')
+    email="$(printf '%s' "$trailer" | grep --only-matching --perl-regexp '<.*?>')"
     # Save email if no signature with it was saved so far
     if [[ -z "${grouped_trailers_by_email[$email]}" ]]; then
       sorted_emails+=("$email")
+    fi
+    # Remove the assoative email from (Closes|Link) trailer lines
+    if [[ "${trailer}" =~ ^(Closes|Link) ]]; then
+      trailer=$(printf '%s' "$trailer" | sed --regexp-extended 's/ <[^>]*>$//')
     fi
     # Append the signature to the associative array based on the email
     grouped_trailers_by_email["$email"]+="${trailer},"
@@ -457,7 +461,9 @@ function parse_signature_options()
       --add-reported-by | -R)
         options_values['NO_ADD_OPTION']=''
 
-        while read -d ',' -r signature; do
+        while read -d ',' -r arg; do
+          IFS=';' read -r signature tag_and_link <<< "$arg"
+
           parse_and_add_trailer 'REPORTED_BY' "$signature"
           return_status="$?"
 
@@ -468,6 +474,21 @@ function parse_signature_options()
           elif [[ "$return_status" -eq 22 ]]; then
             options_values['ERROR']="Invalid signature format: ${signature}"
             return 22 # EINVAL
+          fi
+
+          if [[ -n "$tag_and_link" ]]; then
+            if ! [[ "$tag_and_link" =~ ^(Closes|Link)=[^[:space:]]+$ ]]; then
+              options_values['ERROR']="Bad REPORTED_BY argument: ${tag_and_link}"
+              return 22 # EINVAL
+            fi
+            # Extract the last email in `grouped_trailers_by_tag` and add it to the
+            # (Closes|Link) trailer line. This is important to associate this trailer
+            # line with the correct Reported-by tag when all trailers get sorted.
+            # This email is removed from this (Closes|Link) line before writting it.
+            IFS='=' read -r tag link <<< "$tag_and_link"
+            email=$(printf '%s' "${grouped_trailers_by_tag['REPORTED_BY']}" |
+              grep --only-matching --perl-regexp '<\K[^>]+(?=>)' | awk 'END {print}')
+            grouped_trailers_by_tag['REPORTED_BY']+="${tag}: ${link} <$email>,"
           fi
         done <<< "${2},"
 
