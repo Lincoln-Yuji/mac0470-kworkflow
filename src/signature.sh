@@ -7,6 +7,7 @@ declare -gA options_values
 declare -gA TRAILER_TAGS
 
 TRAILER_TAGS['REPORTED_BY']='Reported-by:'
+TRAILER_TAGS['CLOSES_OR_LINK']='Closes:|Link:'
 TRAILER_TAGS['CO_DEVELOPED_BY']='Co-developed-by:'
 TRAILER_TAGS['ACKED_BY']='Acked-by:'
 TRAILER_TAGS['TESTED_BY']='Tested-by:'
@@ -31,21 +32,25 @@ declare -gA grouped_trailers_by_tag
 # It acts as an auxiliary variable to sort the trailers that will be written later
 declare -gA grouped_trailers_by_email
 
-# This variable holds all the emails read from command line arguments.
-# It acts as an auxiliary variable to sort the trailers that will be written later
+# This variable holds all the emails from signatures. The order os such emails
+# represent the order each email entry in `grouped_trailers_by_email` was created
+# during this feature's execution.
 declare -ga sorted_emails
 
 # Variable to store all trailers that will be written.
-# The order attempts to obey the following general sequence:
-#
-# [REPORTED_BY tags]   Chronologically, this is what happens first.
-# ...                  Of course, such tags are optional.
-# ...
-# [SUBMITTERS' tags]   Then a person (or group) develops the patch(es).
-# ...
-# [MAINTAINERS' tags]  Patches then are acked/tested/reviewed by maintainers
-# ...
-# [FIXES tags]         Then 'Fixes' tags are written last
+# The order obeys the following general sequence:
+# - Reported-by
+# - Co-developed-by
+# - Acked-by
+# - Tested-by
+# - Reviewed-by
+# - Signed-off-by
+# - Fixes
+# As trailer lines with the same signature are grouped together. Example:
+# Reviewed-by: Joe Doe <joedoe@mail.xyz>
+# Signed-off-by: Joe Doe <joedoe@mail.xyz>
+# Reviewed-by: Bob Doe <bobdoe@mail.xyz>
+# Signed-off-by: Bob Doe <boobdoe@mail.xyz>
 declare -g all_trailers
 
 # This function performs operations over trailers in
@@ -127,6 +132,30 @@ function is_valid_signature()
   fi
 }
 
+# TODO: To move this function to 'kw_string.sh'.
+#
+# This functions extracts the NAME from a trailer line with a valid signature.
+# Valid signatures can be verified with `is_valid_signature`.
+#
+# @trailer A string that follows the pattern "TRAILER_TAG: NAME <EMAIL>"
+function extract_name_from_trailer()
+{
+  local trailer="$1"
+  printf '%s' "$trailer" | grep --only-matching --perl-regexp '(?<=: ).*?(?= <)'
+}
+
+# TODO: To move this function to 'kw_string.sh'.
+#
+# This functions extracts the EMAIL from a trailer line with a valid signature.
+# Valid signatures can be verified with `is_valid_signature`.
+#
+# @trailer A string that follows the pattern "TRAILER_TAG: NAME <EMAIL>"
+function extract_email_from_trailer()
+{
+  local trailer="$1"
+  printf '%s' "$trailer" | grep --only-matching --perl-regexp '<\K[^>]+'
+}
+
 # This function parses and adds a new trailer line into
 # @all_trailers that will be properly written later, however
 # the trailer isn't added if there's another identical one.
@@ -146,10 +175,15 @@ function parse_and_add_trailer()
   local keyword="$1"
   local signature="$2"
   local formated_output
-  local trailer
+  local parsed_trailer
+  local parsed_trailer_name
+  local parsed_trailer_email
+  local trailer_name
+  local trailer_email
   local repeated_trailer=false
+  local duplicated_email=false
 
-  trailer="${TRAILER_TAGS[$keyword]} "
+  parsed_trailer="${TRAILER_TAGS[$keyword]} "
 
   # Use default from git config if no argument was given
   if [[ ! "$signature" ]]; then
@@ -157,26 +191,46 @@ function parse_and_add_trailer()
     if [[ "$?" -gt 0 ]]; then
       return 1
     fi
-    trailer+="$formated_output"
+    parsed_trailer+="$formated_output"
   else
     signature="$(str_strip "$signature")"
     if [[ "$keyword" != 'FIXES' ]] && ! is_valid_signature "$signature"; then
       return 22 # EINVAL
     fi
-    trailer+="$signature"
+    parsed_trailer+="$signature"
   fi
 
-  # Check for trailer repetition, do not add the trailer if it's repeated
+  # Check if this trailer has the same email, but a different name compared to
+  # others already read and saved in `all_trailers`.
+  while read -d ',' -r trailer; do
+    # If it's a (Closes|Link) trailer, then there is no need to check email duplication.
+    if [[ "${trailer}" =~ ^(Closes|Link) ]]; then
+      continue
+    fi
+    parsed_trailer_name=$(extract_name_from_trailer "$parsed_trailer")
+    parsed_trailer_email=$(extract_email_from_trailer "$parsed_trailer")
+    trailer_name=$(extract_name_from_trailer "$trailer")
+    trailer_email=$(extract_email_from_trailer "$trailer")
+    if [[ "$trailer_email" == "$parsed_trailer_email" ]] && [[ "$trailer_name" != "$parsed_trailer_name" ]]; then
+      duplicated_email=true
+      warning "Same email used with different names: ${trailer_name}, ${parsed_trailer_name}, ${trailer_email}"
+      warning "Skipping the following trailer line: '${parsed_trailer}'"
+      break
+    fi
+  done <<< "$all_trailers"
+
+  # Check for trailer duplication
   while read -d ',' -r item; do
-    if [[ "$item" == "$trailer" ]]; then
+    if [[ "$item" == "$parsed_trailer" ]]; then
       repeated_trailer=true
-      warning "Skipping duplicated trailer line: '${trailer}'"
+      warning "Skipping duplicated trailer line: '${parsed_trailer}'"
       break
     fi
   done <<< "${grouped_trailers_by_tag[$keyword]}"
 
-  if [[ "$repeated_trailer" = false ]]; then
-    grouped_trailers_by_tag["$keyword"]+="${trailer},"
+  if [[ "$repeated_trailer" = false ]] && [[ "$duplicated_email" = false ]]; then
+    grouped_trailers_by_tag["$keyword"]+="${parsed_trailer},"
+    all_trailers+="${parsed_trailer},"
   fi
 }
 
@@ -243,12 +297,12 @@ function group_by_email()
 
   while read -d ',' -r trailer; do
     # Extract email from trailer
-    email="$(printf '%s' "$trailer" | grep --only-matching --perl-regexp '<.*?>')"
+    email=$(extract_email_from_trailer "$trailer")
     # Save email if no signature with it was saved so far
     if [[ -z "${grouped_trailers_by_email[$email]}" ]]; then
       sorted_emails+=("$email")
     fi
-    # Remove the assoative email from (Closes|Link) trailer lines
+    # Remove the associative email from (Closes|Link) trailer lines
     if [[ "${trailer}" =~ ^(Closes|Link) ]]; then
       trailer=$(printf '%s' "$trailer" | sed --regexp-extended 's/ <[^>]*>$//')
     fi
@@ -268,6 +322,8 @@ function group_by_email()
 # 'Reviewed-by' or 'Signed-off-by' from the person in commits or patches.
 function sort_all_trailers()
 {
+  all_trailers=''
+
   # Group all trailers by email. The order of this grouping process
   # follows the same order of the next `group_by_email` calls, sorting
   # the trailers by their tags.
@@ -284,7 +340,7 @@ function sort_all_trailers()
     all_trailers+="${grouped_trailers_by_email[$email]}"
   done
 
-  # Concatanate every 'Fixes' tag at the end of `all_trailes`, which means
+  # Concatanate every 'Fixes' tag at the end of `all_trailers`, which means
   # they will be the last written trailers when `write_all_trailers` is called.
   while read -d ',' -r trailer; do
     all_trailers+="${trailer},"
@@ -486,9 +542,10 @@ function parse_signature_options()
             # line with the correct Reported-by tag when all trailers get sorted.
             # This email is removed from this (Closes|Link) line before writting it.
             IFS='=' read -r tag link <<< "$tag_and_link"
-            email=$(printf '%s' "${grouped_trailers_by_tag['REPORTED_BY']}" |
-              grep --only-matching --perl-regexp '<\K[^>]+(?=>)' | awk 'END {print}')
+            email=$(extract_email_from_trailer "${grouped_trailers_by_tag['REPORTED_BY']}" |
+              awk 'END {print}')
             grouped_trailers_by_tag['REPORTED_BY']+="${tag}: ${link} <$email>,"
+            all_trailers+="${tag}: ${link} <$email>,"
           fi
         done <<< "${2},"
 

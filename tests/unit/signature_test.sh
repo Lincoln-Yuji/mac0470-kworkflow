@@ -195,6 +195,7 @@ Signed-off-by: kw <kw@kwkw.xyz>'
 # in a typical expected order imposed by the kernel documentation
 CORRECT_MULTI_CALL_LOG_2='Signed-off-by: kw <kw@kwkw.xyz>
 Reported-by: Michael Doe <michaeldoe@mail.xyz>
+Closes: http://link-to-bug.xyz.com
 Co-developed-by: Michael Doe <michaeldoe@mail.xyz>
 Signed-off-by: Michael Doe <michaeldoe@mail.xyz>
 Co-developed-by: John Doe <johndoe@mail.xyz>
@@ -205,6 +206,7 @@ Signed-off-by: Jane Doe <janedoe@mail.xyz>
 
 Signed-off-by: kw <kw@kwkw.xyz>
 Reported-by: Michael Doe <michaeldoe@mail.xyz>
+Closes: http://link-to-bug.xyz.com
 Co-developed-by: Michael Doe <michaeldoe@mail.xyz>
 Signed-off-by: Michael Doe <michaeldoe@mail.xyz>
 Co-developed-by: John Doe <johndoe@mail.xyz>
@@ -215,6 +217,7 @@ Signed-off-by: Jane Doe <janedoe@mail.xyz>
 
 Signed-off-by: kw <kw@kwkw.xyz>
 Reported-by: Michael Doe <michaeldoe@mail.xyz>
+Closes: http://link-to-bug.xyz.com
 Co-developed-by: Michael Doe <michaeldoe@mail.xyz>
 Signed-off-by: Michael Doe <michaeldoe@mail.xyz>
 Co-developed-by: John Doe <johndoe@mail.xyz>
@@ -659,7 +662,7 @@ function test_signature_commit_multi_options()
   assertEquals "(${LINENO})" "${CORRECT_MULTI_CALL_LOG_1//<hash>/$correct_fixed_value}" "$current_log"
   git reset --quiet --hard "$original_commit"
 
-  signature_main -R'Michael Doe <michaeldoe@mail.xyz>' \
+  signature_main -R'Michael Doe <michaeldoe@mail.xyz>;Closes=http://link-to-bug.xyz.com' \
     -C'Michael Doe <michaeldoe@mail.xyz>' \
     -C'John Doe <johndoe@mail.xyz>' \
     -t'Jane Doe <janedoe@mail.xyz>' \
@@ -671,7 +674,7 @@ function test_signature_commit_multi_options()
 
   signature_main -s'Jane Doe <janedoe@mail.xyz>' \
     -t'Jane Doe <janedoe@mail.xyz>' \
-    -R'Michael Doe <michaeldoe@mail.xyz>' \
+    -R'Michael Doe <michaeldoe@mail.xyz>;Closes=http://link-to-bug.xyz.com' \
     -C'John Doe <johndoe@mail.xyz>' \
     -C'Michael Doe <michaeldoe@mail.xyz>' \
     -r'Jane Doe <janedoe@mail.xyz>' HEAD~3
@@ -683,7 +686,7 @@ function test_signature_commit_multi_options()
     -s'Jane Doe <janedoe@mail.xyz>' \
     -t'Jane Doe <janedoe@mail.xyz>' \
     -r'Jane Doe <janedoe@mail.xyz>' \
-    -R'Michael Doe <michaeldoe@mail.xyz>' \
+    -R'Michael Doe <michaeldoe@mail.xyz>;Closes=http://link-to-bug.xyz.com' \
     -C'John Doe <johndoe@mail.xyz>' HEAD~3
   current_log="$(git log --max-count 4 --format="%(trailers)")"
   assertEquals "(${LINENO})" "$CORRECT_MULTI_CALL_LOG_2" "$current_log"
