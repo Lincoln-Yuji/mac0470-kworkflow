@@ -84,7 +84,7 @@ function _kw_autocomplete()
   kw_options['vm']='--mount --umount --up --alert --help'
 
   kw_options['signature']='--add-signed-off-by --add-reviewed-by --add-acked-by --add-fixes
-                           --add-tested-by --add-co-developed-by --add-reported-by --verbose'
+                           --add-tested-by --add-co-developed-by --add-reported-by --verbose --help'
 
   kw_options['clear-cache']='--verbose'
 

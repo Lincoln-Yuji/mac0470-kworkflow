@@ -16,12 +16,20 @@ SYNOPSIS
 
 DESCRIPTION
 ===========
-This is a wrapper to some useful usage of the 'git commit --amend',
-'git rebase' and the 'git interpret-trailers' commands. This kw command
-is able to perform usual operations over trailer lines of commits and patches.
-By default, it uses the commit currently pointed by `HEAD` as the target
-of the operation if user does not specify one. At least one operation option
-must be given.
+This feature adds Linux kernel tags to either commits or patches and helps
+to make this kind of task quicker to complete. It's a wrapper to some useful
+usage of the ``git commit --amend``, ``git rebase`` and ``git interpret-trailers``
+commands allowing this kw command to perform usual operations over trailer lines
+of commits and patches. By default, it uses the commit currently pointed by `HEAD`
+as the target of the operation if user does not specify one. At least one operation
+option must be given.
+
+Most kernel tags contain a signature like::
+
+  TAG: NAME <EMAIL>
+
+By default, options that add these types of tags will use your current `user.name`
+and `user.email` from git configuration if nothing is specified in the command line.
 
 Using multiple options combined is possible. For instance, the following
 command will add **Reviewed-by** and **Signed-off-by**, in this order,
@@ -30,7 +38,7 @@ to the commit's trailers pointed by `HEAD` using `user.name` and
 
   $ kw signature -r -s
 
-The order the trailer lines are written follows the general sequence:
+The order the trailer lines are added follows the general sequence:
 
 .. code-block:: text
 
@@ -42,7 +50,7 @@ The order the trailer lines are written follows the general sequence:
    Signed-off-by
    Fixes
 
-Such that trailer lines are grouped by their signatures. That means using either
+At the same time, new lines are grouped by their signatures. That means using both
 ``kw signature -r -s`` or ``kw signature -s -r`` will generate the same result:
 
 .. code-block:: text
@@ -50,45 +58,49 @@ Such that trailer lines are grouped by their signatures. That means using either
    Reviewed-by: Some Name <somemail@mail.xyz>
    Signed-off-by: Some Name <somemail@mail.xyz>
 
-More examples can be found in **EXAMPLES** section.
+However, it's important to note that every new tag is added **after** the old ones
+that were already present in the commit or patch message.
 
 Another important aspect of this command is that, since it uses ``git rebase``
-as its backend, if we run it using a SHA like ``kw signature -s HEAD~3`` then
-only commits refered by ``HEAD~2``, ``HEAD~1`` and ``HEAD`` will be affected.
+as a part of its backend, if we run it using a SHA like ``kw signature -s HEAD~3``
+then only commits refered by ``HEAD~2``, ``HEAD~1`` and ``HEAD`` will be affected.
 This is similar to what happens if you execute ``git rebase --interactive HEAD~3``.
 
 OPTIONS
 =======
 -s, \--add-signed-off-by:
-  Adds a **Signed-off-by** trailer line to either commits or patchsets.
+  Adds a **Signed-off-by** kernel tag line to either commits or patchsets.
   By default it uses `user.name` and `user.email` from git config to
   write these lines if no argument is given to this option.
   
 -r, \--add-reviewed-by:
-  Adds a **Reviewed-by** trailer line to either commits or patchsets.
+  Adds a **Reviewed-by** kernel tag  line to either commits or patchsets.
   By default it uses `user.name` and `user.email` from git config to
   write these lines if no argument is given to this option.
 
 -a, \--add-acked-by:
-  Adds a **Acked-by** trailer line to either commits or patchsets.
+  Adds a **Acked-by** kernel tagline to either commits or patchsets.
   By default it uses `user.name` and `user.email` from git config to
   write these lines if no argument is given to this option.
 
 -t, \--add-tested-by:
-  Adds a **Tested-by** trailer line to either commits or patchsets.
+  Adds a **Tested-by** kernel tag line to either commits or patchsets.
   By default it uses `user.name` and `user.email` from git config to
   write these lines if no argument is given to this option.
 
 -C, \--add-co-developed-by:
   Adds a **Co-developed-by** immediately followed by a **Signed-off-by**
-  trailer line to either commits or patchsets. By default it uses
+  kernel tag line to either commits or patchsets. By default it uses
   `user.name` and `user.email` from git config to write these lines if
   no argument is given to this option.
 
 -R, \--add-reported-by:
-  Add a **Reported-by** trailer line to either commits or patchsets.
+  Adds a **Reported-by** trailer line to either commits or patchsets.
   By default it uses `user.name` and `user.email` from git config to
-  write these lines if no argument is given to this option.
+  write these lines if no argument is given to this option. Also, the
+  user has the option to pass a **Closes** or **Link** as an additional
+  tag that will be added immediately after for cases when the bug report
+  is available in the web.
 
 -f, \--add-fixes:
   Adds a **Fixes** trailer line to either commits or patchsets.
@@ -136,7 +148,7 @@ One more complex example than the one seen in **DESCRIPTION** is::
 
   $ kw signature -s'Jane Doe <janedoe@mail.xyz>' \
     -t'Jane Doe <janedoe@mail.xyz>' \
-    -R'Michael Doe <michaeldoe@mail.xyz>' \
+    -R'Michael Doe <michaeldoe@mail.xyz>;Closes=https://link-to-bug.xyz' \
     -C'John Doe <johndoe@mail.xyz>' \
     -C'Michael Doe <michaeldoe@mail.xyz>' \
     -r'Jane Doe <janedoe@mail.xyz>'
@@ -146,6 +158,7 @@ That will write these trailers like so:
 .. code-block:: text
 
   Reported-by: Michael Doe <michaeldoe@mail.xyz>
+  Closes: https://link-to-bug.xyz
   Co-developed-by: Michael Doe <michaeldoe@mail.xyz>
   Signed-off-by: Michael Doe <michaeldoe@mail.xyz>
   Co-developed-by: John Doe <johndoe@mail.xyz>

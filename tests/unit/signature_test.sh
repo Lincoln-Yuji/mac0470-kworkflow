@@ -717,42 +717,42 @@ function test_signature_no_user_or_email_config()
   return_status="$?"
   assertEquals "(${LINENO})" 22 "$return_status"
   assertEquals "(${LINENO})" \
-    "You must configure your user.name and user.email with git to use --add-signed-off-by or -s without an argument" \
+    "You must configure your user.name and user.email with git to use --add-signed-off-by | -s without an argument" \
     "$output_msg"
 
   output_msg="$(signature_main --add-reviewed-by)"
   return_status="$?"
   assertEquals "(${LINENO})" 22 "$return_status"
   assertEquals "(${LINENO})" \
-    "You must configure your user.name and user.email with git to use --add-reviewed-by or -r without an argument" \
+    "You must configure your user.name and user.email with git to use --add-reviewed-by | -r without an argument" \
     "$output_msg"
 
   output_msg="$(signature_main --add-acked-by)"
   return_status="$?"
   assertEquals "(${LINENO})" 22 "$return_status"
   assertEquals "(${LINENO})" \
-    "You must configure your user.name and user.email with git to use --add-acked-by or -a without an argument" \
+    "You must configure your user.name and user.email with git to use --add-acked-by | -a without an argument" \
     "$output_msg"
 
   output_msg="$(signature_main --add-tested-by)"
   return_status="$?"
   assertEquals "(${LINENO})" 22 "$return_status"
   assertEquals "(${LINENO})" \
-    "You must configure your user.name and user.email with git to use --add-tested-by or -t without an argument" \
+    "You must configure your user.name and user.email with git to use --add-tested-by | -t without an argument" \
     "$output_msg"
 
   output_msg="$(signature_main --add-co-developed-by)"
   return_status="$?"
   assertEquals "(${LINENO})" 22 "$return_status"
   assertEquals "(${LINENO})" \
-    "You must configure your user.name and user.email with git to use --add-co-developed-by or -C without an argument" \
+    "You must configure your user.name and user.email with git to use --add-co-developed-by | -C without an argument" \
     "$output_msg"
 
   output_msg="$(signature_main --add-reported-by)"
   return_status="$?"
   assertEquals "(${LINENO})" 22 "$return_status"
   assertEquals "(${LINENO})" \
-    "You must configure your user.name and user.email with git to use --add-reported-by or -R without an argument" \
+    "You must configure your user.name and user.email with git to use --add-reported-by | -R without an argument" \
     "$output_msg"
 }
 
@@ -795,17 +795,17 @@ function test_signature_invalid_commit_reference()
   output_msg="$(signature_main --add-fixes)"
   return_status="$?"
   assertEquals "(${LINENO})" 22 "$return_status"
-  assertEquals "(${LINENO})" 'The option --add-fixes or -f demands an argument' "$output_msg"
+  assertEquals "(${LINENO})" 'The option --add-fixes | -f demands an argument' "$output_msg"
 
   output_msg="$(signature_main --add-fixes='8ac76z12wac3')"
   return_status="$?"
   assertEquals "(${LINENO})" 22 "$return_status"
-  assertEquals "(${LINENO})" 'Invalid commit reference with --add-fixes or -f: 8ac76z12wac3' "$output_msg"
+  assertEquals "(${LINENO})" 'Invalid commit reference with --add-fixes | -f: 8ac76z12wac3' "$output_msg"
 
   output_msg="$(signature_main --add-fixes='HEAD~9999')"
   return_status="$?"
   assertEquals "(${LINENO})" 22 "$return_status"
-  assertEquals "(${LINENO})" 'Invalid commit reference with --add-fixes or -f: HEAD~9999' "$output_msg"
+  assertEquals "(${LINENO})" 'Invalid commit reference with --add-fixes | -f: HEAD~9999' "$output_msg"
 }
 
 invoke_shunit

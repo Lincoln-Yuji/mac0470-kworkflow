@@ -7,7 +7,6 @@ declare -gA options_values
 declare -gA TRAILER_TAGS
 
 TRAILER_TAGS['REPORTED_BY']='Reported-by:'
-TRAILER_TAGS['CLOSES_OR_LINK']='Closes:|Link:'
 TRAILER_TAGS['CO_DEVELOPED_BY']='Co-developed-by:'
 TRAILER_TAGS['ACKED_BY']='Acked-by:'
 TRAILER_TAGS['TESTED_BY']='Tested-by:'
@@ -32,13 +31,13 @@ declare -gA grouped_trailers_by_tag
 # It acts as an auxiliary variable to sort the trailers that will be written later
 declare -gA grouped_trailers_by_email
 
-# This variable holds all the emails from signatures. The order os such emails
+# This variable holds all the emails from signatures. The order of such emails
 # represent the order each email entry in `grouped_trailers_by_email` was created
 # during this feature's execution.
 declare -ga sorted_emails
 
-# Variable to store all trailers that will be written.
-# The order obeys the following general sequence:
+# Variable to store all trailers that will be added. If `sort_all_trailers`
+# function is used, then the order obeys the following general sequence:
 # - Reported-by
 # - Co-developed-by
 # - Acked-by
@@ -121,7 +120,6 @@ function signature_main()
 # Returns 0 if signature is valid; returns 22 otherwise.
 function is_valid_signature()
 {
-
   # Defining the format a legit email should follow
   local signature="$1"
   local email_regex='[A-Za-z0-9_\.-]+@[A-Za-z0-9_-]+(\.[A-Za-z0-9]+)+'
@@ -132,8 +130,6 @@ function is_valid_signature()
   fi
 }
 
-# TODO: To move this function to 'kw_string.sh'.
-#
 # This functions extracts the NAME from a trailer line with a valid signature.
 # Valid signatures can be verified with `is_valid_signature`.
 #
@@ -144,8 +140,6 @@ function extract_name_from_trailer()
   printf '%s' "$trailer" | grep --only-matching --perl-regexp '(?<=: ).*?(?= <)'
 }
 
-# TODO: To move this function to 'kw_string.sh'.
-#
 # This functions extracts the EMAIL from a trailer line with a valid signature.
 # Valid signatures can be verified with `is_valid_signature`.
 #
@@ -154,6 +148,23 @@ function extract_email_from_trailer()
 {
   local trailer="$1"
   printf '%s' "$trailer" | grep --only-matching --perl-regexp '<\K[^>]+'
+}
+
+# # TODO: To move this function to a 'gitlib' library
+#
+# This function validates if a commit reference is valid.
+#
+# @sha Holds a string that can be a commit hash or pointer.
+#
+# Returns:
+# True if given path is a valid commit reference and false otherwise.
+function is_valid_commit_reference()
+{
+  local sha="$1"
+
+  if [[ $(git cat-file -t "$sha" 2> /dev/null) != 'commit' ]]; then
+    return 1 # EPERM
+  fi
 }
 
 # This function parses and adds a new trailer line into
@@ -189,7 +200,7 @@ function parse_and_add_trailer()
   if [[ ! "$signature" ]]; then
     formated_output="$(format_name_email_from_user)"
     if [[ "$?" -gt 0 ]]; then
-      return 1
+      return 61 # ENODATA
     fi
     parsed_trailer+="$formated_output"
   else
@@ -249,7 +260,7 @@ function format_fixes_message()
   local formatted_message
 
   # Check if given value is a valid commit reference
-  if [[ $(git cat-file -t "$sha" 2> /dev/null) != 'commit' ]]; then
+  if ! is_valid_commit_reference "$sha"; then
     return 22 # EINVAL
   fi
 
@@ -268,7 +279,7 @@ function format_fixes_message()
 #
 # Return:
 # In case of successful return 0 and prints a properly formatted
-# output, otherwise, return 1.
+# output, otherwise, return 61.
 function format_name_email_from_user()
 {
   local user_name
@@ -280,7 +291,7 @@ function format_name_email_from_user()
   # If user doesn't have either a name or email configured with
   # git then they must provide an argument
   if [[ -z "$user_name" || -z "$user_email" ]]; then
-    return 1
+    return 61 # ENODATA
   fi
 
   printf '%s' "${user_name} <${user_email}>"
@@ -353,7 +364,7 @@ function sort_all_trailers()
 # and then ignores it.
 #
 # @patch_or_sha Holds either a patch path or commit SHA
-# @flag Used to specify how 'cmd_manager' will be executed
+# @flag Used to specify how `cmd_manager` will be executed
 function write_all_trailers()
 {
   local patch_or_sha="$1"
@@ -363,19 +374,15 @@ function write_all_trailers()
   while read -d ',' -r trailer; do
     # Check if given argument is either a patch or valid commit reference,
     # then build the correct command.
-    if [[ "$(git cat-file -t "$patch_or_sha" 2> /dev/null)" == 'commit' ]]; then
+    if is_valid_commit_reference "$patch_or_sha"; then
       cmd="git commit --quiet --amend --no-edit --trailer \"${trailer}\""
       # Only call 'git rebase' if user is trying to write multiple commits
       if [[ "$(git rev-parse "$patch_or_sha")" != "$(git rev-parse HEAD)" ]]; then
         cmd="git rebase ${patch_or_sha} --exec '${cmd}' 2> /dev/null"
       fi
-    elif is_a_patch "$patch_or_sha"; then
-      cmd="git interpret-trailers ${patch_or_sha} --in-place --trailer \"${trailer}\""
     else
-      warning "Unmatched patch or commit. Ignoring: ${patch_or_sha}"
-      continue
+      cmd="git interpret-trailers ${patch_or_sha} --in-place --trailer \"${trailer}\""
     fi
-
     cmd_manager "$flag" "$cmd"
   done <<< "$all_trailers"
 }
@@ -415,9 +422,9 @@ function parse_signature_options()
           parse_and_add_trailer 'SIGNED_OFF_BY' "$signature"
           return_status="$?"
 
-          if [[ "$return_status" -eq 1 ]]; then
+          if [[ "$return_status" -eq 61 ]]; then
             options_values['ERROR']='You must configure your user.name and user.email with git '
-            options_values['ERROR']+='to use --add-signed-off-by or -s without an argument'
+            options_values['ERROR']+='to use --add-signed-off-by | -s without an argument'
             return 22 # EINVAL
           elif [[ "$return_status" -eq 22 ]]; then
             options_values['ERROR']="Invalid signature format: ${signature}"
@@ -436,9 +443,9 @@ function parse_signature_options()
           parse_and_add_trailer 'REVIEWED_BY' "$signature"
           return_status="$?"
 
-          if [[ "$return_status" -eq 1 ]]; then
+          if [[ "$return_status" -eq 61 ]]; then
             options_values['ERROR']='You must configure your user.name and user.email with git '
-            options_values['ERROR']+='to use --add-reviewed-by or -r without an argument'
+            options_values['ERROR']+='to use --add-reviewed-by | -r without an argument'
             return 22 # EINVAL
           elif [[ "$return_status" -eq 22 ]]; then
             options_values['ERROR']="Invalid signature format: ${signature}"
@@ -457,9 +464,9 @@ function parse_signature_options()
           parse_and_add_trailer 'ACKED_BY' "$signature"
           return_status="$?"
 
-          if [[ "$return_status" -eq 1 ]]; then
+          if [[ "$return_status" -eq 61 ]]; then
             options_values['ERROR']='You must configure your user.name and user.email with git '
-            options_values['ERROR']+='to use --add-acked-by or -a without an argument'
+            options_values['ERROR']+='to use --add-acked-by | -a without an argument'
             return 22 # EINVAL
           elif [[ "$return_status" -eq 22 ]]; then
             options_values['ERROR']="Invalid signature format: ${signature}"
@@ -478,9 +485,9 @@ function parse_signature_options()
           parse_and_add_trailer 'TESTED_BY' "$signature"
           return_status="$?"
 
-          if [[ "$return_status" -eq 1 ]]; then
+          if [[ "$return_status" -eq 61 ]]; then
             options_values['ERROR']='You must configure your user.name and user.email with git '
-            options_values['ERROR']+='to use --add-tested-by or -t without an argument'
+            options_values['ERROR']+='to use --add-tested-by | -t without an argument'
             return 22 # EINVAL
           elif [[ "$return_status" -eq 22 ]]; then
             options_values['ERROR']="Invalid signature format: ${signature}"
@@ -497,12 +504,12 @@ function parse_signature_options()
 
         while read -d ',' -r signature; do
           parse_and_add_trailer 'CO_DEVELOPED_BY' "$signature"
-          return_status="$?"
           parse_and_add_trailer 'SIGNED_OFF_BY' "$signature"
+          return_status="$?"
 
-          if [[ "$return_status" -eq 1 ]]; then
+          if [[ "$return_status" -eq 61 ]]; then
             options_values['ERROR']='You must configure your user.name and user.email with git '
-            options_values['ERROR']+='to use --add-co-developed-by or -C without an argument'
+            options_values['ERROR']+='to use --add-co-developed-by | -C without an argument'
             return 22 # EINVAL
           elif [[ "$return_status" -eq 22 ]]; then
             options_values['ERROR']="Invalid signature format: ${signature}"
@@ -523,9 +530,9 @@ function parse_signature_options()
           parse_and_add_trailer 'REPORTED_BY' "$signature"
           return_status="$?"
 
-          if [[ "$return_status" -eq 1 ]]; then
+          if [[ "$return_status" -eq 61 ]]; then
             options_values['ERROR']='You must configure your user.name and user.email with git '
-            options_values['ERROR']+='to use --add-reported-by or -R without an argument'
+            options_values['ERROR']+='to use --add-reported-by | -R without an argument'
             return 22 # EINVAL
           elif [[ "$return_status" -eq 22 ]]; then
             options_values['ERROR']="Invalid signature format: ${signature}"
@@ -557,13 +564,13 @@ function parse_signature_options()
         options_values['NO_ADD_OPTION']=''
 
         if [[ ! "$2" ]]; then
-          options_values['ERROR']='The option --add-fixes or -f demands an argument'
+          options_values['ERROR']='The option --add-fixes | -f demands an argument'
           return 22 # EINVAL
         fi
 
         formatted_message="$(format_fixes_message "$(str_strip "$2")")"
         if [[ "$?" -gt 0 ]]; then
-          options_values['ERROR']="Invalid commit reference with --add-fixes or -f: ${2}"
+          options_values['ERROR']="Invalid commit reference with --add-fixes | -f: ${2}"
           return 22 # EINVAL
         fi
 
@@ -583,14 +590,28 @@ function parse_signature_options()
         shift
         ;;
       *)
+        # Ignore empty argument. No need to validate it.
+        if [[ -z "$1" ]]; then
+          shift
+          continue
+        fi
+
         # Get all passed arguments each loop
         if [[ "$1" == *"*"* ]]; then
           # Expand the glob and loop through each resulting file
           for arg in $1; do
-            options_values['PATCH_OR_SHA']+=" $arg"
+            if ! is_valid_commit_reference "$arg" && ! is_a_patch "$arg"; then
+              options_values['ERROR']="Neither a patch nor a valid commit reference: ${arg}"
+              return 22 # EINVAL
+            fi
+            options_values['PATCH_OR_SHA']+=" ${arg}"
           done
         else
-          options_values['PATCH_OR_SHA']+=" $1"
+          if ! is_valid_commit_reference "$1" && ! is_a_patch "$1"; then
+            options_values['ERROR']="Neither a patch nor a valid commit reference: ${1}"
+            return 22 # EINVAL
+          fi
+          options_values['PATCH_OR_SHA']+=" ${1}"
         fi
         shift
         ;;
@@ -606,12 +627,12 @@ function signature_help()
     return
   fi
   printf '%s\n' 'kw signature:' \
-    '  signature (--add-signed-off-by | -s) (<name>) [<patchset> | <sha>] - Add Signed-off-by' \
-    '  signature (--add-reviewed-by | -r) (<name>) [<patchset> | <sha>] - Add Reviewed-by' \
-    '  signature (--add-acked-by | -a) (<name>) [<patchset> | <sha>] - Add Acked-by' \
-    '  signature (--add-tested-by | -t) (<name>) [<patchset> | <sha>] - Add Tested-by' \
-    '  signature (--add-co-developed-by | -C) (<name>) [<patchset> | <sha>] - Add Co-developed-by' \
-    '  signature (--add-reported-by | -R) (<name>) [<patchset> | <sha>] - Add Reported-by' \
+    '  signature (--add-signed-off-by | -s) (<name>,...) [<patchset> | <sha>] - Add Signed-off-by' \
+    '  signature (--add-reviewed-by | -r) (<name>,...) [<patchset> | <sha>] - Add Reviewed-by' \
+    '  signature (--add-acked-by | -a) (<name>,...) [<patchset> | <sha>] - Add Acked-by' \
+    '  signature (--add-tested-by | -t) (<name>,...) [<patchset> | <sha>] - Add Tested-by' \
+    '  signature (--add-co-developed-by | -C) (<name>,...) [<patchset> | <sha>] - Add Co-developed-by and Signed-off-by' \
+    '  signature (--add-reported-by | -R) (<name>;Closes|Link=<link>,...) [<patchset> | <sha>] - Add Reported-by' \
     '  signature (--add-fixes | -f) [<fixed-sha>] [<patchset> | <sha>] - Add Fixes' \
     '  signature (--verbose) - Show a detailed output'
 }
